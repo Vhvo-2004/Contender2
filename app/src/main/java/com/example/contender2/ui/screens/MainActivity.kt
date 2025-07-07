@@ -62,7 +62,14 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun HomeScreen(navController: NavController) {
     var restaurantes by remember { mutableStateOf<List<Restaurante>>(emptyList()) }
+
+    // States Restaurante 1
     var searchQuery by remember { mutableStateOf("") }
+    var isDropdownExpanded1 by remember { mutableStateOf(false) }
+
+    // States Restaurante 2
+    var searchQuery2 by remember { mutableStateOf("") }
+    var isDropdownExpanded2 by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         try {
@@ -73,9 +80,15 @@ fun HomeScreen(navController: NavController) {
             Log.e("API_TEST", "Erro: ${e.message}")
         }
     }
-    val filteredList = restaurantes.filter { restaurante ->
-        restaurante.nome.contains(searchQuery, ignoreCase = true)
+
+    // Filtragens
+    val filteredList1 = restaurantes.filter {
+        it.nome.contains(searchQuery, ignoreCase = true)
     }
+    val filteredList2 = restaurantes.filter {
+        it.nome.contains(searchQuery2, ignoreCase = true)
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -106,7 +119,6 @@ fun HomeScreen(navController: NavController) {
                 imageVector = Icons.Default.Search,
                 contentDescription = "Search",
                 modifier = Modifier.clickable {
-                    // Navega para a tela de pesquisa ao clicar no ícone de busca
                     navController.navigate("Comparison")
                 }
             )
@@ -116,15 +128,12 @@ fun HomeScreen(navController: NavController) {
 
         // Exibição dos restaurantes carregados
         Text("Restaurantes Carregados:", fontWeight = FontWeight.Bold)
-
         restaurantes.forEach { restaurante ->
             Text("- ${restaurante.nome}")
         }
 
         Spacer(modifier = Modifier.height(24.dp))
-
         Divider()
-
         Spacer(modifier = Modifier.height(24.dp))
 
         // Título e Ícone
@@ -147,29 +156,76 @@ fun HomeScreen(navController: NavController) {
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Restaurante 1
-        OutlinedTextField(
-            value = "",
-            onValueChange = { newValue ->
-                searchQuery = newValue
-            },
-            label = { Text("Restaurante 1") },
-            modifier = Modifier.fillMaxWidth()
-        )
+        // Restaurante 1 com Dropdown de sugestões
+        Box {
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { newValue ->
+                    searchQuery = newValue
+                    isDropdownExpanded1 = newValue.isNotEmpty()
+                },
+                label = { Text("Restaurante 1") },
+                modifier = Modifier.fillMaxWidth()
+            )
 
-        Spacer(modifier = Modifier.height(16.dp))
-        if (filteredList.isEmpty()) {
-            Text("Nenhum restaurante encontrado.")
-        } else {
-            filteredList.forEach { restaurante ->
-                Text("- ${restaurante.nome}")
+            DropdownMenu(
+                expanded = isDropdownExpanded1 && filteredList1.isNotEmpty(),
+                onDismissRequest = { isDropdownExpanded1 = false },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color.White)
+            ) {
+                filteredList1.forEach { restaurante ->
+                    DropdownMenuItem(
+                        text = { Text(restaurante.nome) },
+                        onClick = {
+                            searchQuery = restaurante.nome
+                            isDropdownExpanded1 = false
+                        }
+                    )
+                }
             }
         }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Restaurante 2 com Dropdown de sugestões
+        Box {
+            OutlinedTextField(
+                value = searchQuery2,
+                onValueChange = { newValue ->
+                    searchQuery2 = newValue
+                    isDropdownExpanded2 = newValue.isNotEmpty()
+                },
+                label = { Text("Restaurante 2") },
+                placeholder = { Text("Digite os restaurantes para compara-los") },
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            DropdownMenu(
+                expanded = isDropdownExpanded2 && filteredList2.isNotEmpty(),
+                onDismissRequest = { isDropdownExpanded2 = false },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color.White)
+            ) {
+                filteredList2.forEach { restaurante ->
+                    DropdownMenuItem(
+                        text = { Text(restaurante.nome) },
+                        onClick = {
+                            searchQuery2 = restaurante.nome
+                            isDropdownExpanded2 = false
+                        }
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
 
         // Botão de comparação (ícone de busca)
         IconButton(
             onClick = {
-                // Ação de comparação ou navegação
                 navController.navigate("Comparison")
             },
             modifier = Modifier.align(Alignment.CenterHorizontally)
@@ -179,19 +235,10 @@ fun HomeScreen(navController: NavController) {
                 contentDescription = "Comparar"
             )
         }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Restaurante 2
-        OutlinedTextField(
-            value = "",
-            onValueChange = {},
-            label = { Text("Restaurante 2") },
-            placeholder = { Text("Digite os restaurantes para compara-los") },
-            modifier = Modifier.fillMaxWidth()
-        )
     }
 }
+
+
 
 
 
