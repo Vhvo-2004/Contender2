@@ -1,14 +1,13 @@
 package com.example.contender2.ui.screens
 
+import android.util.Log
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -19,76 +18,73 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
-
-// Classe de dados fictícia para uma avaliação
-data class Avaliacao(
-    val id: Int,
-    val nomeUsuario: String,
-    val imagemUsuario: ImageVector,
-    val aspecto: String,
-    val preco: String,
-    val distancia: String,
-    val avaliacao: Float,
-    val textoComplementar: String,
-    val eFavorito: Boolean
-)
-
-// Dados de exemplo (substitua pela sua fonte de dados real)
-val avaliacoesExemplo = List(5) { index ->
-    Avaliacao(
-        id = index,
-        nomeUsuario = if (index < 2) "Usuário 1" else "Usuário 2",
-        imagemUsuario = Icons.Filled.AccountCircle,
-        aspecto = "aspecto",
-        preco = "$$",
-        distancia = "1.2 km de distância",
-        avaliacao = 4.5f,
-        textoComplementar = "Texto complementar lorem ipsum...",
-        eFavorito = index % 2 == 0
-    )
-}
+import com.example.contender2.network.Avaliacao
+import com.example.contender2.network.Restaurante
+import com.example.contender2.network.RetrofitInstance
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun Comparison(navController: NavHostController) {
     var indiceAbaSelecionada by remember { mutableStateOf(0) }
-    val abas = listOf("Restaurante 1", "Restaurante 2")
 
     var consultaAspecto by remember { mutableStateOf("") }
     var dataInicio by remember { mutableStateOf("") }
     var dataFim by remember { mutableStateOf("") }
 
-    // Estado para navegação inferior
-    var itemNavegacaoInferiorSelecionado by remember { mutableStateOf(0) }
-    val itensNavegacaoInferior = listOf("Avaliações", "Gráficos")
-    val iconesNavegacaoInferior = listOf(Icons.Filled.Star, Icons.Filled.BarChart)
+    var restaurantes by remember { mutableStateOf<List<Restaurante>>(emptyList()) }
+    var avaliacoes by remember { mutableStateOf<List<Avaliacao>>(emptyList()) }
+
+    // 🔥 Requisição GET na inicialização
+    LaunchedEffect(Unit) {
+        try {
+            restaurantes = RetrofitInstance.api.getRestaurantes()
+            avaliacoes = RetrofitInstance.api.getAvaliacoes()
+            Log.d("API_DEBUG", "Restaurantes recebidos: ${restaurantes.size}")
+            Log.d("API_DEBUG", "Avaliações recebidas: ${avaliacoes.size}")
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    // 🔷 Filtra restaurantes com avaliações
+    val restauranteIdsComAvaliacoes = avaliacoes.map { it.restaurante_id }.toSet()
+    val restaurantesComAvaliacoes = restaurantes.filter { it.id in restauranteIdsComAvaliacoes }
+
+    // 🔷 Nomes para as abas
+    val abas = restaurantesComAvaliacoes.map { it.nome }
+
+    // 🔷 Filtro de aspecto + restaurante
+    val restauranteIdSelecionado = restaurantesComAvaliacoes.getOrNull(indiceAbaSelecionada)?.id
+    val avaliacoesFiltradas = avaliacoes.filter { avaliacao ->
+        val correspondeAspecto = consultaAspecto.isEmpty() || avaliacao.comentario.contains(consultaAspecto, ignoreCase = true)
+        val correspondeRestaurante = restauranteIdSelecionado == null || avaliacao.restaurante_id == restauranteIdSelecionado
+        correspondeAspecto && correspondeRestaurante
+    }
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("Comparação") },
                 navigationIcon = {
-                    IconButton(onClick = { /* Lidar com o botão de voltar */ }) {
+                    IconButton(onClick = { navController.navigateUp() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Voltar")
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface
-                )
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
             )
         },
         bottomBar = {
             NavigationBar {
+                val itensNavegacaoInferior = listOf("Avaliações", "Gráficos")
+                val iconesNavegacaoInferior = listOf(Icons.Filled.Star, Icons.Filled.BarChart)
+                var itemNavegacaoInferiorSelecionado by remember { mutableStateOf(0) }
+
                 itensNavegacaoInferior.forEachIndexed { index, item ->
                     NavigationBarItem(
                         icon = { Icon(iconesNavegacaoInferior[index], contentDescription = item) },
@@ -113,15 +109,18 @@ fun Comparison(navController: NavHostController) {
                 .fillMaxSize()
                 .padding(horizontal = 16.dp)
         ) {
-
             Spacer(modifier = Modifier.height(16.dp))
 
             // Botão segmentado / Abas
-            SegmentedControl(
-                items = abas,
-                selectedIndex = indiceAbaSelecionada,
-                onIndexSelected = { indiceAbaSelecionada = it }
-            )
+            if (abas.isNotEmpty()) {
+                SegmentedControl(
+                    items = abas,
+                    selectedIndex = indiceAbaSelecionada,
+                    onIndexSelected = { indiceAbaSelecionada = it }
+                )
+            } else {
+                Text("Nenhum restaurante com avaliações disponíveis.", color = Color.Gray)
+            }
 
             Spacer(modifier = Modifier.height(16.dp))
 
@@ -170,25 +169,22 @@ fun Comparison(navController: NavHostController) {
             Spacer(modifier = Modifier.height(16.dp))
 
             // Lista de Avaliações
-            LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                items(avaliacoesExemplo) { avaliacao ->
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                items(avaliacoesFiltradas) { avaliacao ->
                     ItemAvaliacao(avaliacao = avaliacao)
                 }
 
-                // Item para visualizar todas as avaliações
                 item {
                     Spacer(modifier = Modifier.height(8.dp))
                     Button(
-                        onClick = { /* Lidar com Visualizar todas as Avaliações */ },
+                        onClick = { /* TODO: Visualizar todas as avaliações */ },
                         modifier = Modifier.fillMaxWidth(),
                         contentPadding = PaddingValues(vertical = 12.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Color.White),
                         border = BorderStroke(1.dp, Color.LightGray),
                         shape = RoundedCornerShape(8.dp)
                     ) {
-                        Text("Ver 231 Avaliações", color = MaterialTheme.colorScheme.primary)
+                        Text("Ver ${avaliacoes.size} Avaliações", color = MaterialTheme.colorScheme.primary)
                     }
                     Spacer(modifier = Modifier.height(16.dp))
                 }
@@ -197,7 +193,6 @@ fun Comparison(navController: NavHostController) {
     }
 }
 
-// Componente de Controle Segmentado Personalizado
 @Composable
 fun SegmentedControl(
     items: List<String>,
@@ -235,68 +230,18 @@ fun SegmentedControl(
     }
 }
 
-// Componente para um único item de avaliação
 @Composable
 fun ItemAvaliacao(avaliacao: Avaliacao) {
-    var eFavorito by remember { mutableStateOf(avaliacao.eFavorito) }
-
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White)
     ) {
-        Row(
-            modifier = Modifier
-                .padding(12.dp)
-                .fillMaxWidth(),
-            verticalAlignment = Alignment.Top
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(60.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(Color.LightGray),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(avaliacao.imagemUsuario, contentDescription = "Avatar do Usuário", modifier = Modifier.size(40.dp), tint = Color.Gray)
-            }
-
-            Spacer(modifier = Modifier.width(12.dp))
-
-            Column(modifier = Modifier.weight(1f)) {
-                Text(avaliacao.nomeUsuario, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    "${avaliacao.aspecto} • ${avaliacao.preco} • ${avaliacao.distancia}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = Color.Gray
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    repeat(5) { index ->
-                        Icon(
-                            imageVector = if (index < avaliacao.avaliacao) Icons.Filled.Star else Icons.Filled.StarBorder,
-                            contentDescription = "Estrela de Avaliação",
-                            tint = Color(0xFFFFC107),
-                            modifier = Modifier.size(16.dp)
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(avaliacao.textoComplementar, style = MaterialTheme.typography.bodySmall, color = Color.DarkGray)
-            }
-
-            IconButton(
-                onClick = { eFavorito = !eFavorito },
-                modifier = Modifier.align(Alignment.Top)
-            ) {
-                Icon(
-                    imageVector = if (eFavorito) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
-                    contentDescription = "Favorito",
-                    tint = if (eFavorito) Color.Red else Color.Gray
-                )
-            }
+        Column(modifier = Modifier.padding(12.dp)) {
+            Text("Usuário: ${avaliacao.usuario}", fontWeight = FontWeight.Bold)
+            Text("Comentário: ${avaliacao.comentario}")
+            Text("Nota: ${avaliacao.nota}")
+            Text("Data: ${avaliacao.data}")
         }
     }
 }

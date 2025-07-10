@@ -13,12 +13,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -34,24 +29,22 @@ import com.example.contender2.network.RetrofitInstance
 import com.example.contender2.ui.theme.Contender2Theme
 
 class MainActivity : ComponentActivity() {
+    @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
             Contender2Theme {
-                // Setup de navegação
                 val navController = rememberNavController()
-
-                // Scaffold com a navegação
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     NavHost(
                         navController = navController,
-                        startDestination = "home", // Tela inicial
+                        startDestination = "home",
                         modifier = Modifier.padding(innerPadding)
                     ) {
-                        composable("home") { HomeScreen(navController) } // Tela inicial
-                        composable("Comparison") { Comparison(navController) } // Tela de comparação
-                        composable("Charts") { Charts(navController) } // Tela de grafico(default histogram)
+                        composable("home") { HomeScreen(navController) }
+                        composable("Comparison") { Comparison(navController) }
+                        composable("Charts") { Charts(navController) }
                     }
                 }
             }
@@ -59,17 +52,14 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(navController: NavController) {
     var restaurantes by remember { mutableStateOf<List<Restaurante>>(emptyList()) }
-
-    // States Restaurante 1
     var searchQuery by remember { mutableStateOf("") }
-    var isDropdownExpanded1 by remember { mutableStateOf(false) }
-
-    // States Restaurante 2
+    var expanded1 by remember { mutableStateOf(false) }
     var searchQuery2 by remember { mutableStateOf("") }
-    var isDropdownExpanded2 by remember { mutableStateOf(false) }
+    var expanded2 by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         try {
@@ -81,13 +71,8 @@ fun HomeScreen(navController: NavController) {
         }
     }
 
-    // Filtragens
-    val filteredList1 = restaurantes.filter {
-        it.nome.contains(searchQuery, ignoreCase = true)
-    }
-    val filteredList2 = restaurantes.filter {
-        it.nome.contains(searchQuery2, ignoreCase = true)
-    }
+    val filteredList1 = restaurantes.filter { it.nome.contains(searchQuery, ignoreCase = true) }
+    val filteredList2 = restaurantes.filter { it.nome.contains(searchQuery2, ignoreCase = true) }
 
     Column(
         modifier = Modifier
@@ -97,7 +82,7 @@ fun HomeScreen(navController: NavController) {
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
 
-        // Barra de Pesquisa
+        // Barra de Pesquisa superior
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
@@ -105,10 +90,7 @@ fun HomeScreen(navController: NavController) {
                 .background(Color(0xFFF0E9F6), shape = RoundedCornerShape(24.dp))
                 .padding(horizontal = 16.dp, vertical = 12.dp)
         ) {
-            Icon(
-                imageVector = Icons.Default.Menu,
-                contentDescription = "Menu"
-            )
+            Icon(imageVector = Icons.Default.Menu, contentDescription = "Menu")
             Spacer(modifier = Modifier.width(8.dp))
             Text(
                 text = "Pesquisar Restaurante",
@@ -118,15 +100,12 @@ fun HomeScreen(navController: NavController) {
             Icon(
                 imageVector = Icons.Default.Search,
                 contentDescription = "Search",
-                modifier = Modifier.clickable {
-                    navController.navigate("Comparison")
-                }
+                modifier = Modifier.clickable { navController.navigate("Comparison") }
             )
         }
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Exibição dos restaurantes carregados
         Text("Restaurantes Carregados:", fontWeight = FontWeight.Bold)
         restaurantes.forEach { restaurante ->
             Text("- ${restaurante.nome}")
@@ -136,7 +115,6 @@ fun HomeScreen(navController: NavController) {
         Divider()
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Título e Ícone
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth()
@@ -156,31 +134,33 @@ fun HomeScreen(navController: NavController) {
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Restaurante 1 com Dropdown de sugestões
-        Box {
+        // Dropdown Restaurante 1
+        ExposedDropdownMenuBox(
+            expanded = expanded1,
+            onExpandedChange = { expanded1 = !expanded1 }
+        ) {
             OutlinedTextField(
                 value = searchQuery,
-                onValueChange = { newValue ->
-                    searchQuery = newValue
-                    isDropdownExpanded1 = newValue.isNotEmpty()
+                onValueChange = {
+                    searchQuery = it
+                    expanded1 = it.isNotEmpty()
                 },
                 label = { Text("Restaurante 1") },
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            DropdownMenu(
-                expanded = isDropdownExpanded1 && filteredList1.isNotEmpty(),
-                onDismissRequest = { isDropdownExpanded1 = false },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Color.White)
+                    .menuAnchor(),
+                singleLine = true
+            )
+            ExposedDropdownMenu(
+                expanded = expanded1 && filteredList1.isNotEmpty(),
+                onDismissRequest = { expanded1 = false }
             ) {
                 filteredList1.forEach { restaurante ->
                     DropdownMenuItem(
                         text = { Text(restaurante.nome) },
                         onClick = {
                             searchQuery = restaurante.nome
-                            isDropdownExpanded1 = false
+                            expanded1 = false
                         }
                     )
                 }
@@ -189,32 +169,34 @@ fun HomeScreen(navController: NavController) {
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Restaurante 2 com Dropdown de sugestões
-        Box {
+        // Dropdown Restaurante 2
+        ExposedDropdownMenuBox(
+            expanded = expanded2,
+            onExpandedChange = { expanded2 = !expanded2 }
+        ) {
             OutlinedTextField(
                 value = searchQuery2,
-                onValueChange = { newValue ->
-                    searchQuery2 = newValue
-                    isDropdownExpanded2 = newValue.isNotEmpty()
+                onValueChange = {
+                    searchQuery2 = it
+                    expanded2 = it.isNotEmpty()
                 },
                 label = { Text("Restaurante 2") },
-                placeholder = { Text("Digite os restaurantes para compara-los") },
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            DropdownMenu(
-                expanded = isDropdownExpanded2 && filteredList2.isNotEmpty(),
-                onDismissRequest = { isDropdownExpanded2 = false },
+                placeholder = { Text("Digite os restaurantes para compará-los") },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Color.White)
+                    .menuAnchor(),
+                singleLine = true
+            )
+            ExposedDropdownMenu(
+                expanded = expanded2 && filteredList2.isNotEmpty(),
+                onDismissRequest = { expanded2 = false }
             ) {
                 filteredList2.forEach { restaurante ->
                     DropdownMenuItem(
                         text = { Text(restaurante.nome) },
                         onClick = {
                             searchQuery2 = restaurante.nome
-                            isDropdownExpanded2 = false
+                            expanded2 = false
                         }
                     )
                 }
@@ -223,11 +205,8 @@ fun HomeScreen(navController: NavController) {
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Botão de comparação (ícone de busca)
         IconButton(
-            onClick = {
-                navController.navigate("Comparison")
-            },
+            onClick = { navController.navigate("Comparison") },
             modifier = Modifier.align(Alignment.CenterHorizontally)
         ) {
             Icon(
@@ -238,7 +217,10 @@ fun HomeScreen(navController: NavController) {
     }
 }
 
-
-
-
-
+@Preview(showBackground = true)
+@Composable
+fun HomeScreenPreview() {
+    Contender2Theme {
+        HomeScreen(navController = rememberNavController())
+    }
+}
