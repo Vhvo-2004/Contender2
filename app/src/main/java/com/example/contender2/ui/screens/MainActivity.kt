@@ -22,11 +22,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
-import androidx.navigation.compose.*
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
 import com.example.contender2.R
-import com.example.contender2.network.Restaurante
+import com.example.contender2.network.RestauranteDto
 import com.example.contender2.network.RetrofitInstance
 import com.example.contender2.ui.theme.Contender2Theme
+import java.net.URLEncoder
 
 class MainActivity : ComponentActivity() {
     @OptIn(ExperimentalMaterial3Api::class)
@@ -43,8 +46,22 @@ class MainActivity : ComponentActivity() {
                         modifier = Modifier.padding(innerPadding)
                     ) {
                         composable("home") { HomeScreen(navController) }
-                        composable("Comparison") { Comparison(navController) }
-                        composable("Charts") { Charts(navController) }
+
+                        // (Opcional) ainda existe sua rota Comparison; mantendo por compatibilidade
+                        composable("Comparison/{id1}/{id2}") { backStackEntry ->
+                            val id1 = backStackEntry.arguments?.getString("id1")?.toIntOrNull() ?: 0
+                            val id2 = backStackEntry.arguments?.getString("id2")?.toIntOrNull() ?: 0
+                            Comparison(navController, id1, id2)
+                        }
+
+
+                        composable("Charts/{id1}/{id2}/{nome1}/{nome2}") { backStackEntry ->
+                            val id1 = backStackEntry.arguments?.getString("id1")?.toIntOrNull() ?: 0
+                            val id2 = backStackEntry.arguments?.getString("id2")?.toIntOrNull() ?: 0
+                            val nome1 = java.net.URLDecoder.decode(backStackEntry.arguments?.getString("nome1") ?: "", "UTF-8")
+                            val nome2 = java.net.URLDecoder.decode(backStackEntry.arguments?.getString("nome2") ?: "", "UTF-8")
+                            Charts(id1, id2, nome1, nome2, navController)
+                        }
                     }
                 }
             }
@@ -55,34 +72,44 @@ class MainActivity : ComponentActivity() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(navController: NavController) {
-    var restaurantes by remember { mutableStateOf<List<Restaurante>>(emptyList()) }
-    var searchQuery by remember { mutableStateOf("") }
-    var expanded1 by remember { mutableStateOf(false) }
+    var restaurantes by remember { mutableStateOf<List<RestauranteDto>>(emptyList()) }
+
+    var searchQuery1 by remember { mutableStateOf("") }
     var searchQuery2 by remember { mutableStateOf("") }
+
+    var expanded1 by remember { mutableStateOf(false) }
     var expanded2 by remember { mutableStateOf(false) }
+
+    var selecionado1 by remember { mutableStateOf<RestauranteDto?>(null) }
+    var selecionado2 by remember { mutableStateOf<RestauranteDto?>(null) }
 
     LaunchedEffect(Unit) {
         try {
-            val response = RetrofitInstance.api.getRestaurantes()
-            Log.d("API_TEST", "Recebido: $response")
-            restaurantes = response
+            restaurantes = RetrofitInstance.api.getRestaurantes()
+            Log.d("API_TEST", "Recebido: ${restaurantes.size} restaurantes")
         } catch (e: Exception) {
             Log.e("API_TEST", "Erro: ${e.message}")
         }
     }
 
-    val filteredList1 = restaurantes.filter { it.nome.contains(searchQuery, ignoreCase = true) }
+    // helpers: se não há seleção, tenta resolver pelo texto digitado (primeiro match)
+    fun resolveR1(): RestauranteDto? =
+        selecionado1 ?: restaurantes.firstOrNull { it.nome.equals(searchQuery1, ignoreCase = true) }
+        ?: restaurantes.firstOrNull { it.nome.contains(searchQuery1, ignoreCase = true) }
+
+    fun resolveR2(): RestauranteDto? =
+        selecionado2 ?: restaurantes.firstOrNull { it.nome.equals(searchQuery2, ignoreCase = true) }
+        ?: restaurantes.firstOrNull { it.nome.contains(searchQuery2, ignoreCase = true) }
+
+    val filteredList1 = restaurantes.filter { it.nome.contains(searchQuery1, ignoreCase = true) }
     val filteredList2 = restaurantes.filter { it.nome.contains(searchQuery2, ignoreCase = true) }
 
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
+        modifier = Modifier.fillMaxSize().padding(16.dp),
         verticalArrangement = Arrangement.Top,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-
-        // Barra de Pesquisa superior
+        // Barra "Pesquisar Restaurante" (atalho para Comparison)
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
@@ -100,55 +127,46 @@ fun HomeScreen(navController: NavController) {
             Icon(
                 imageVector = Icons.Default.Search,
                 contentDescription = "Search",
-                modifier = Modifier.clickable { navController.navigate("Comparison") }
+                modifier = Modifier.clickable {
+                    val r1 = resolveR1()
+                    val r2 = resolveR2()
+                    if (r1 != null && r2 != null) {
+                        navController.navigate("Comparison/${r1.id}/${r2.id}")
+                    }
+                }
             )
         }
 
         Spacer(modifier = Modifier.height(24.dp))
 
         Text("Restaurantes Carregados:", fontWeight = FontWeight.Bold)
-        restaurantes.forEach { restaurante ->
-            Text("- ${restaurante.nome}")
-        }
+        restaurantes.forEach { restaurante -> Text("- ${restaurante.nome}") }
 
         Spacer(modifier = Modifier.height(24.dp))
         Divider()
         Spacer(modifier = Modifier.height(24.dp))
 
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Icon(
-                painter = painterResource(id = R.drawable.arrowscompareicicon),
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            Icon(painter = painterResource(id = R.drawable.arrowscompareicicon),
                 contentDescription = "Compare Icon",
-                modifier = Modifier.size(64.dp)
-            )
+                modifier = Modifier.size(64.dp))
             Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = "Comparar",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold
-            )
+            Text(text = "Comparar", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
         }
 
         Spacer(modifier = Modifier.height(24.dp))
 
         // Dropdown Restaurante 1
-        ExposedDropdownMenuBox(
-            expanded = expanded1,
-            onExpandedChange = { expanded1 = !expanded1 }
-        ) {
+        ExposedDropdownMenuBox(expanded = expanded1, onExpandedChange = { expanded1 = !expanded1 }) {
             OutlinedTextField(
-                value = searchQuery,
+                value = searchQuery1,
                 onValueChange = {
-                    searchQuery = it
+                    searchQuery1 = it
+                    selecionado1 = null
                     expanded1 = it.isNotEmpty()
                 },
                 label = { Text("Restaurante 1") },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .menuAnchor(),
+                modifier = Modifier.fillMaxWidth().menuAnchor(),
                 singleLine = true
             )
             ExposedDropdownMenu(
@@ -159,7 +177,8 @@ fun HomeScreen(navController: NavController) {
                     DropdownMenuItem(
                         text = { Text(restaurante.nome) },
                         onClick = {
-                            searchQuery = restaurante.nome
+                            searchQuery1 = restaurante.nome
+                            selecionado1 = restaurante
                             expanded1 = false
                         }
                     )
@@ -170,21 +189,17 @@ fun HomeScreen(navController: NavController) {
         Spacer(modifier = Modifier.height(16.dp))
 
         // Dropdown Restaurante 2
-        ExposedDropdownMenuBox(
-            expanded = expanded2,
-            onExpandedChange = { expanded2 = !expanded2 }
-        ) {
+        ExposedDropdownMenuBox(expanded = expanded2, onExpandedChange = { expanded2 = !expanded2 }) {
             OutlinedTextField(
                 value = searchQuery2,
                 onValueChange = {
                     searchQuery2 = it
+                    selecionado2 = null
                     expanded2 = it.isNotEmpty()
                 },
                 label = { Text("Restaurante 2") },
-                placeholder = { Text("Digite os restaurantes para compará-los") },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .menuAnchor(),
+                placeholder = { Text("Digite para filtrar") },
+                modifier = Modifier.fillMaxWidth().menuAnchor(),
                 singleLine = true
             )
             ExposedDropdownMenu(
@@ -196,6 +211,7 @@ fun HomeScreen(navController: NavController) {
                         text = { Text(restaurante.nome) },
                         onClick = {
                             searchQuery2 = restaurante.nome
+                            selecionado2 = restaurante
                             expanded2 = false
                         }
                     )
@@ -205,17 +221,46 @@ fun HomeScreen(navController: NavController) {
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        IconButton(
-            onClick = { navController.navigate("Comparison") },
+        // Botão para VER COMENTÁRIOS (Comparison)
+        Button(
+            onClick = {
+                val r1 = resolveR1()
+                val r2 = resolveR2()
+                if (r1 != null && r2 != null) {
+                    navController.navigate("Comparison/${r1.id}/${r2.id}")
+                }
+            },
+            enabled = (resolveR1() != null && resolveR2() != null),
             modifier = Modifier.align(Alignment.CenterHorizontally)
         ) {
-            Icon(
-                imageVector = Icons.Default.Search,
-                contentDescription = "Comparar"
-            )
+            Icon(imageVector = Icons.Default.Search, contentDescription = "Ver comentários")
+            Spacer(Modifier.width(8.dp))
+            Text("Ver comentários (texto)")
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Botão para GRÁFICOS (Charts) — mantém seu fluxo atual
+        Button(
+            onClick = {
+                val r1 = resolveR1()
+                val r2 = resolveR2()
+                if (r1 != null && r2 != null) {
+                    val n1 = URLEncoder.encode(r1.nome, "UTF-8")
+                    val n2 = URLEncoder.encode(r2.nome, "UTF-8")
+                    navController.navigate("Charts/${r1.id}/${r2.id}/${n1}/${n2}")
+                }
+            },
+            enabled = (resolveR1() != null && resolveR2() != null),
+            modifier = Modifier.align(Alignment.CenterHorizontally)
+        ) {
+            Icon(imageVector = Icons.Default.Search, contentDescription = "Comparar")
+            Spacer(Modifier.width(8.dp))
+            Text("Comparar aspectos (gráficos)")
         }
     }
 }
+
 
 @Preview(showBackground = true)
 @Composable

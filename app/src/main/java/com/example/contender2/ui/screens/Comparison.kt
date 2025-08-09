@@ -11,60 +11,79 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
-import androidx.navigation.compose.rememberNavController
-import com.example.contender2.network.Avaliacao
-import com.example.contender2.network.Restaurante
-import com.example.contender2.network.RetrofitInstance
+import com.example.contender2.network.*
+import java.net.URLEncoder
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun Comparison(navController: NavHostController) {
+fun Comparison(navController: NavHostController, id1: Int, id2: Int) {
     var indiceAbaSelecionada by remember { mutableStateOf(0) }
-
     var consultaAspecto by remember { mutableStateOf("") }
-    var dataInicio by remember { mutableStateOf("") }
-    var dataFim by remember { mutableStateOf("") }
 
-    var restaurantes by remember { mutableStateOf<List<Restaurante>>(emptyList()) }
-    var avaliacoes by remember { mutableStateOf<List<Avaliacao>>(emptyList()) }
+    var restaurantes by remember { mutableStateOf<List<RestauranteDto>>(emptyList()) }
+    var comentarios by remember { mutableStateOf<List<ComentarioDto>>(emptyList()) }
+    var clientes by remember { mutableStateOf<Map<Int, ClienteDto>>(emptyMap()) }
+    var opinioesPorComentario by remember { mutableStateOf<Map<Int, List<OpiniaoDto>>>(emptyMap()) }
 
-    // 🔥 Requisição GET na inicialização
-    LaunchedEffect(Unit) {
+    var erro by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(id1, id2) {
         try {
-            restaurantes = RetrofitInstance.api.getRestaurantes()
-            avaliacoes = RetrofitInstance.api.getAvaliacoes()
-            Log.d("API_DEBUG", "Restaurantes recebidos: ${restaurantes.size}")
-            Log.d("API_DEBUG", "Avaliações recebidas: ${avaliacoes.size}")
+            erro = null
+            val r = RetrofitInstance.api.getRestaurantes()
+            val c = RetrofitInstance.api.getComentarios()
+            val cl = RetrofitInstance.api.getClientes().associateBy { it.id }
+            val op = RetrofitInstance.api.getOpinioes().groupBy { it.comentario_id }
+
+            restaurantes = r
+            comentarios = c
+            clientes = cl
+            opinioesPorComentario = op
+
+            Log.d("API_DEBUG", "restaurantes=${r.size}, comentarios=${c.size}, clientes=${cl.size}, opinioes=${op.values.sumOf { it.size }}")
         } catch (e: Exception) {
             e.printStackTrace()
+            erro = e.message
         }
     }
 
-    // 🔷 Filtra restaurantes com avaliações
-    val restauranteIdsComAvaliacoes = avaliacoes.map { it.restaurante_id }.toSet()
-    val restaurantesComAvaliacoes = restaurantes.filter { it.id in restauranteIdsComAvaliacoes }
+    // pega os dois restaurantes por ID
+    val r1 = restaurantes.firstOrNull { it.id == id1 }
+    val r2 = restaurantes.firstOrNull { it.id == id2 }
+    val restaurantesComComentarios = listOfNotNull(r1, r2).filter { rest ->
+        comentarios.any { it.restaurante_id == rest.id }
+    }
 
-    // 🔷 Nomes para as abas
-    val abas = restaurantesComAvaliacoes.map { it.nome }
+    val abas = restaurantesComComentarios.map { it.nome }
+    val restauranteIdSelecionado = restaurantesComComentarios
+        .getOrNull(indiceAbaSelecionada)
+        ?.id
 
-    // 🔷 Filtro de aspecto + restaurante
-    val restauranteIdSelecionado = restaurantesComAvaliacoes.getOrNull(indiceAbaSelecionada)?.id
-    val avaliacoesFiltradas = avaliacoes.filter { avaliacao ->
-        val correspondeAspecto = consultaAspecto.isEmpty() || avaliacao.comentario.contains(consultaAspecto, ignoreCase = true)
-        val correspondeRestaurante = restauranteIdSelecionado == null || avaliacao.restaurante_id == restauranteIdSelecionado
-        correspondeAspecto && correspondeRestaurante
+    val comentariosDoRestaurante = comentarios.filter { it.restaurante_id == restauranteIdSelecionado }
+
+    // filtro por texto/“aspecto”
+    val comentariosFiltrados = comentariosDoRestaurante.filter { com ->
+        val termo = consultaAspecto.trim()
+        if (termo.isEmpty()) return@filter true
+        val noComentario = com.texto.contains(termo, true) || (com.titulo?.contains(termo, true) == true)
+        val ops = opinioesPorComentario[com.id].orEmpty()
+        val nasOpinioes = ops.any { it.aspecto.contains(termo, true) || (it.sentenca?.contains(termo, true) == true) }
+        noComentario || nasOpinioes
     }
 
     Scaffold(
@@ -80,25 +99,17 @@ fun Comparison(navController: NavHostController) {
             )
         },
         bottomBar = {
-            NavigationBar {
-                val itensNavegacaoInferior = listOf("Avaliações", "Gráficos")
-                val iconesNavegacaoInferior = listOf(Icons.Filled.Star, Icons.Filled.BarChart)
-                var itemNavegacaoInferiorSelecionado by remember { mutableStateOf(0) }
-
-                itensNavegacaoInferior.forEachIndexed { index, item ->
-                    NavigationBarItem(
-                        icon = { Icon(iconesNavegacaoInferior[index], contentDescription = item) },
-                        label = { Text(item) },
-                        selected = itemNavegacaoInferiorSelecionado == index,
-                        onClick = {
-                            itemNavegacaoInferiorSelecionado = index
-                            when (item) {
-                                "Avaliações" -> navController.navigate("reviews_screen")
-                                "Gráficos" -> navController.navigate("Charts")
-                            }
-                        }
-                    )
-                }
+            if (r1 != null && r2 != null) {
+                Button(
+                    onClick = {
+                        val nome1Encoded = URLEncoder.encode(r1.nome, "UTF-8")
+                        val nome2Encoded = URLEncoder.encode(r2.nome, "UTF-8")
+                        navController.navigate("Charts/${r1.id}/${r2.id}/${nome1Encoded}/${nome2Encoded}")
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                ) { Text("Ir para Gráficos (Aspectos)") }
             }
         },
         containerColor = Color(0xFFF2F2F7)
@@ -111,25 +122,23 @@ fun Comparison(navController: NavHostController) {
         ) {
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Botão segmentado / Abas
-            if (abas.isNotEmpty()) {
-                SegmentedControl(
+            when {
+                erro != null -> Text("Erro: $erro", color = Color.Red)
+                abas.isEmpty() -> Text("Nenhum restaurante com comentários disponíveis.", color = Color.Gray)
+                else -> SegmentedControl(
                     items = abas,
                     selectedIndex = indiceAbaSelecionada,
                     onIndexSelected = { indiceAbaSelecionada = it }
                 )
-            } else {
-                Text("Nenhum restaurante com avaliações disponíveis.", color = Color.Gray)
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Barra de busca de aspecto
             OutlinedTextField(
                 value = consultaAspecto,
                 onValueChange = { consultaAspecto = it },
-                label = { Text("Aspecto") },
-                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = "Buscar Aspecto") },
+                label = { Text("Aspecto / Texto") },
+                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = "Buscar") },
                 trailingIcon = {
                     if (consultaAspecto.isNotEmpty()) {
                         IconButton(onClick = { consultaAspecto = "" }) {
@@ -141,57 +150,20 @@ fun Comparison(navController: NavHostController) {
                 shape = RoundedCornerShape(8.dp)
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Campos de data
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                OutlinedTextField(
-                    value = dataInicio,
-                    onValueChange = { dataInicio = it },
-                    label = { Text("Data de Início") },
-                    placeholder = { Text("dd/mm/aaaa") },
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(8.dp)
-                )
-                OutlinedTextField(
-                    value = dataFim,
-                    onValueChange = { dataFim = it },
-                    label = { Text("Data de Fim") },
-                    placeholder = { Text("dd/mm/aaaa") },
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(8.dp)
-                )
-            }
-
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Lista de Avaliações
             LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                items(avaliacoesFiltradas) { avaliacao ->
-                    ItemAvaliacao(avaliacao = avaliacao)
-                }
-
-                item {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Button(
-                        onClick = { /* TODO: Visualizar todas as avaliações */ },
-                        modifier = Modifier.fillMaxWidth(),
-                        contentPadding = PaddingValues(vertical = 12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color.White),
-                        border = BorderStroke(1.dp, Color.LightGray),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Text("Ver ${avaliacoes.size} Avaliações", color = MaterialTheme.colorScheme.primary)
-                    }
-                    Spacer(modifier = Modifier.height(16.dp))
+                items(comentariosFiltrados, key = { it.id }) { comentario ->
+                    val autor = clientes[comentario.cliente_id]
+                    val ops = opinioesPorComentario[comentario.id].orEmpty()
+                    ItemComentario(comentario = comentario, autor = autor, opinioes = ops)
                 }
             }
         }
     }
 }
+
+/* --------- componentes auxiliares (iguais ao que te mandei) ---------- */
 
 @Composable
 fun SegmentedControl(
@@ -231,23 +203,45 @@ fun SegmentedControl(
 }
 
 @Composable
-fun ItemAvaliacao(avaliacao: Avaliacao) {
+fun ItemComentario(
+    comentario: ComentarioDto,
+    autor: ClienteDto?,
+    opinioes: List<OpiniaoDto>
+) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White)
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
-            Text("Usuário: ${avaliacao.usuario}", fontWeight = FontWeight.Bold)
-            Text("Comentário: ${avaliacao.comentario}")
-            Text("Nota: ${avaliacao.nota}")
-            Text("Data: ${avaliacao.data}")
+            Text("Autor: ${autor?.nome ?: "Desconhecido"}", fontWeight = FontWeight.Bold)
+            comentario.titulo?.let { Text(it) }
+            Text("Comentário: ${comentario.texto}")
+            comentario.data_publicacao?.let { Text("Data: $it") }
+            comentario.curtidas?.let { Text("Curtidas: $it") }
+
+            if (opinioes.isNotEmpty()) {
+                Spacer(Modifier.height(8.dp))
+                FlowRowChip(opinioes)
+            }
         }
     }
 }
 
-@Preview(showBackground = true, device = "id:pixel_6")
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun ComparacaoScreenPreview() {
-    Comparison(navController = rememberNavController())
+fun FlowRowChip(opinioes: List<OpiniaoDto>) {
+    FlowRow(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        opinioes.forEach { op ->
+            AssistChip(
+                onClick = {},
+                label = { Text("${op.aspecto} • ${op.sentimento ?: "neutro"}") }
+            )
+        }
+    }
 }
+
