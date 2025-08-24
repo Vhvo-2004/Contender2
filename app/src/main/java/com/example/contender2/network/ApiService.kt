@@ -1,6 +1,7 @@
 package com.example.contender2.network
 
 import retrofit2.http.GET
+import retrofit2.http.Path
 import retrofit2.http.Query
 
 // === DTOs da API (apenas dados, sem coisas de UI) ===
@@ -17,16 +18,20 @@ data class ClienteDto(
     val genero: String? = null
 )
 
+// com.example.contender2.network
+
 data class ComentarioDto(
     val id: Int,
-    val data_publicacao: String?,   // ISO 8601; parseie para Instant/LocalDateTime se quiser
+    val data_publicacao: String?,
     val curtidas: Int? = null,
     val texto: String,
     val titulo: String? = null,
     val url: String? = null,
     val restaurante_id: Int,
-    val cliente_id: Int
+    val cliente_id: Int,
+    val autor: String? = null      // <--- NOVO
 )
+
 
 data class CategoriaOpiniaoDto(
     val id: Int,
@@ -63,6 +68,12 @@ interface ApiService {
     // Comentários (substitui /avaliacoes/)
     @GET("comentarios/")
     suspend fun getComentarios(): List<ComentarioDto>
+
+    // NOVO: comentários de um restaurante já com 'autor'
+    @GET("comentarios/restaurante/{restaurante_id}")
+    suspend fun getComentariosPorRestaurante(
+        @Path("restaurante_id") restauranteId: Int
+    ): List<ComentarioDto>
 
     // Opiniões (1:N por comentário)
     @GET("opinioes/")

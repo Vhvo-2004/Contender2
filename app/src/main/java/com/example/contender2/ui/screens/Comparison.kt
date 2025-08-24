@@ -19,7 +19,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -37,7 +36,6 @@ fun Comparison(navController: NavHostController, id1: Int, id2: Int) {
 
     var restaurantes by remember { mutableStateOf<List<RestauranteDto>>(emptyList()) }
     var comentarios by remember { mutableStateOf<List<ComentarioDto>>(emptyList()) }
-    var clientes by remember { mutableStateOf<Map<Int, ClienteDto>>(emptyMap()) }
     var opinioesPorComentario by remember { mutableStateOf<Map<Int, List<OpiniaoDto>>>(emptyMap()) }
 
     var erro by remember { mutableStateOf<String?>(null) }
@@ -46,16 +44,22 @@ fun Comparison(navController: NavHostController, id1: Int, id2: Int) {
         try {
             erro = null
             val r = RetrofitInstance.api.getRestaurantes()
-            val c = RetrofitInstance.api.getComentarios()
-            val cl = RetrofitInstance.api.getClientes().associateBy { it.id }
+
+            // Busca comentários de cada restaurante JÁ com `autor`
+            val c1 = RetrofitInstance.api.getComentariosPorRestaurante(id1)
+            val c2 = RetrofitInstance.api.getComentariosPorRestaurante(id2)
+
+            // Opiniões para montar chips/tags
             val op = RetrofitInstance.api.getOpinioes().groupBy { it.comentario_id }
 
             restaurantes = r
-            comentarios = c
-            clientes = cl
+            comentarios = c1 + c2
             opinioesPorComentario = op
 
-            Log.d("API_DEBUG", "restaurantes=${r.size}, comentarios=${c.size}, clientes=${cl.size}, opinioes=${op.values.sumOf { it.size }}")
+            Log.d(
+                "API_DEBUG",
+                "restaurantes=${r.size}, comentarios=${comentarios.size}, opinioes=${op.values.sumOf { it.size }}"
+            )
         } catch (e: Exception) {
             e.printStackTrace()
             erro = e.message
@@ -154,16 +158,15 @@ fun Comparison(navController: NavHostController, id1: Int, id2: Int) {
 
             LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 items(comentariosFiltrados, key = { it.id }) { comentario ->
-                    val autor = clientes[comentario.cliente_id]
                     val ops = opinioesPorComentario[comentario.id].orEmpty()
-                    ItemComentario(comentario = comentario, autor = autor, opinioes = ops)
+                    ItemComentario(comentario = comentario, opinioes = ops)
                 }
             }
         }
     }
 }
 
-/* --------- componentes auxiliares (iguais ao que te mandei) ---------- */
+/* --------- componentes auxiliares ---------- */
 
 @Composable
 fun SegmentedControl(
@@ -205,7 +208,6 @@ fun SegmentedControl(
 @Composable
 fun ItemComentario(
     comentario: ComentarioDto,
-    autor: ClienteDto?,
     opinioes: List<OpiniaoDto>
 ) {
     Card(
@@ -214,11 +216,12 @@ fun ItemComentario(
         colors = CardDefaults.cardColors(containerColor = Color.White)
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
-            Text("Autor: ${autor?.nome ?: "Desconhecido"}", fontWeight = FontWeight.Bold)
+            val autor = comentario.autor?.takeIf { it.isNotBlank() } ?: "Desconhecido"
+            Text("Autor: $autor", fontWeight = FontWeight.Bold)
             comentario.titulo?.let { Text(it) }
             Text("Comentário: ${comentario.texto}")
-            comentario.data_publicacao?.let { Text("Data: $it") }
-            comentario.curtidas?.let { Text("Curtidas: $it") }
+            comentario.data_publicacao?.let { Text("Data: $it") } // formate se desejar
+            Text("Curtidas: ${(comentario.curtidas ?: 0)}")
 
             if (opinioes.isNotEmpty()) {
                 Spacer(Modifier.height(8.dp))
@@ -244,4 +247,3 @@ fun FlowRowChip(opinioes: List<OpiniaoDto>) {
         }
     }
 }
-

@@ -5,6 +5,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -27,6 +28,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.example.contender2.network.AspectoComparadoDto
+import com.example.contender2.network.ClienteDto
+import com.example.contender2.network.ComentarioDto
+import com.example.contender2.network.OpiniaoDto
 import com.example.contender2.network.RetrofitInstance
 import kotlin.math.cos
 import kotlin.math.sin
@@ -40,10 +44,21 @@ fun Charts(id1: Int, id2: Int, nome1: String, nome2: String, navController: NavH
     var comparacoes by remember { mutableStateOf<List<AspectoComparadoDto>>(emptyList()) }
     var erro by remember { mutableStateOf<String?>(null) }
 
+    // NOVOS estados para pizza por gênero
+    var clientes by remember { mutableStateOf<Map<Int, ClienteDto>>(emptyMap()) }
+    var comentarios by remember { mutableStateOf<List<ComentarioDto>>(emptyList()) }
+    var opinioes by remember { mutableStateOf<List<OpiniaoDto>>(emptyList()) }
+
     LaunchedEffect(id1, id2) {
         try {
             erro = null
+            // Mantém a comparação média por aspecto (para a lista e outros gráficos)
             comparacoes = RetrofitInstance.api.compararAspectos(id1, id2)
+
+            // NOVO: dados crus p/ contar opiniões por gênero na pizza
+            clientes = RetrofitInstance.api.getClientes().associateBy { it.id }
+            comentarios = RetrofitInstance.api.getComentarios()
+            opinioes = RetrofitInstance.api.getOpinioes()
         } catch (e: Exception) {
             e.printStackTrace()
             erro = e.message ?: "Erro ao carregar comparação"
@@ -144,11 +159,30 @@ fun Charts(id1: Int, id2: Int, nome1: String, nome2: String, navController: NavH
                                     original2 = dado.notaPredita2,
                                     nome1 = nome1, nome2 = nome2
                                 )
-                                "Pizza" -> PieChartComparativo(
-                                    original1 = dado.notaPredita1,
-                                    original2 = dado.notaPredita2,
-                                    nome1 = nome1, nome2 = nome2
-                                )
+                                "Pizza" -> {
+                                    // NOVO: pizza por gênero (homens x mulheres) para cada restaurante
+                                    val (h1, m1) = contarOpinioesPorGenero(
+                                        restauranteId = id1,
+                                        aspecto = dado.aspecto,
+                                        comentarios = comentarios,
+                                        opinioes = opinioes,
+                                        clientes = clientes
+                                    )
+                                    val (h2, m2) = contarOpinioesPorGenero(
+                                        restauranteId = id2,
+                                        aspecto = dado.aspecto,
+                                        comentarios = comentarios,
+                                        opinioes = opinioes,
+                                        clientes = clientes
+                                    )
+
+                                    PieChartGeneroComparativo(
+                                        aspecto = dado.aspecto,
+                                        nome1 = nome1, nome2 = nome2,
+                                        homens1 = h1, mulheres1 = m1,
+                                        homens2 = h2, mulheres2 = m2
+                                    )
+                                }
                             }
                             Spacer(modifier = Modifier.height(12.dp))
                             Divider()
@@ -188,29 +222,118 @@ fun BarChartComparativo(original1: Float, original2: Float, nome1: String, nome2
     }
 }
 
+/* --------- NOVO: Pizza por gênero (duas pizzas lado a lado) --------- */
+
+private fun contarOpinioesPorGenero(
+    restauranteId: Int,
+    aspecto: String,
+    comentarios: List<ComentarioDto>,
+    opinioes: List<OpiniaoDto>,
+    clientes: Map<Int, ClienteDto>
+): Pair<Int, Int> {
+    // comentários do restaurante
+    val comentariosPorRest = comentarios.asSequence()
+        .filter { it.restaurante_id == restauranteId }
+        .associateBy { it.id }
+
+    // opiniões do aspecto nesses comentários
+    var homens = 0
+    var mulheres = 0
+    opinioes.asSequence()
+        .filter { it.aspecto.equals(aspecto, ignoreCase = true) }
+        .forEach { op ->
+            val com = comentariosPorRest[op.comentario_id] ?: return@forEach
+            val genero = clientes[com.cliente_id]?.genero?.lowercase()?.trim()
+            when (genero) {
+                "masculino" -> homens++
+                "feminino" -> mulheres++
+                // outros/indefinidos: ignorar para esta pizza
+            }
+        }
+
+    return homens to mulheres
+}
+
 @Composable
-fun PieChartComparativo(original1: Float, original2: Float, nome1: String, nome2: String) {
-    val v1 = normalize01(original1)
-    val v2 = normalize01(original2)
-    val total = (v1 + v2).takeIf { it != 0f } ?: 1f
-    val proporcao1 = v1 / total
-    val proporcao2 = v2 / total
-
-    Canvas(modifier = Modifier.size(150.dp)) {
-        val sweep1 = proporcao1 * 360f
-        val sweep2 = proporcao2 * 360f
-        drawArc(color = Color(0xFF90CAF9), startAngle = 0f, sweepAngle = sweep1, useCenter = true)
-        drawArc(color = Color(0xFFF48FB1), startAngle = sweep1, sweepAngle = sweep2, useCenter = true)
-    }
-
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Box(Modifier.size(10.dp).background(Color(0xFF90CAF9)))
-        Text("$nome1 (${String.format("%.3f", original1)})")
-        Spacer(Modifier.width(8.dp))
-        Box(Modifier.size(10.dp).background(Color(0xFFF48FB1)))
-        Text("$nome2 (${String.format("%.3f", original2)})")
+fun PieChartGeneroComparativo(
+    aspecto: String,
+    nome1: String,
+    nome2: String,
+    homens1: Int, mulheres1: Int,
+    homens2: Int, mulheres2: Int
+) {
+    Column(Modifier.fillMaxWidth()) {
+        Text("Distribuição por gênero • $aspecto", fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(8.dp))
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            PieGenero(titulo = nome1, homens = homens1, mulheres = mulheres1)
+            PieGenero(titulo = nome2, homens = homens2, mulheres = mulheres2)
+        }
     }
 }
+
+@Composable
+private fun PieGenero(titulo: String, homens: Int, mulheres: Int) {
+    val total = homens + mulheres
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(titulo, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(6.dp))
+
+        if (total == 0) {
+            // Sem opiniões
+            Box(
+                modifier = Modifier
+                    .size(150.dp)
+                    .background(Color(0xFFECECEC), shape = RoundedCornerShape(75.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("Sem opiniões", color = Color.Gray, fontSize = 12.sp)
+            }
+        } else {
+            val pHomens = homens.toFloat() / total
+            val pMulheres = mulheres.toFloat() / total
+            val sweepH = pHomens * 360f
+            val sweepM = pMulheres * 360f
+
+            Canvas(modifier = Modifier.size(150.dp)) {
+                drawArc(
+                    color = Color(0xFF64B5F6), // homens
+                    startAngle = 0f,
+                    sweepAngle = sweepH,
+                    useCenter = true
+                )
+                drawArc(
+                    color = Color(0xFFF06292), // mulheres
+                    startAngle = sweepH,
+                    sweepAngle = sweepM,
+                    useCenter = true
+                )
+            }
+
+            Spacer(Modifier.height(6.dp))
+
+            // Legenda com quantidades + %
+            Column(horizontalAlignment = Alignment.Start) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(10.dp).background(Color(0xFF64B5F6)))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Homens: $homens (${String.format("%.0f", pHomens * 100)}%)", fontSize = 12.sp)
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(10.dp).background(Color(0xFFF06292)))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Mulheres: $mulheres (${String.format("%.0f", pMulheres * 100)}%)", fontSize = 12.sp)
+                }
+            }
+        }
+    }
+}
+
+/* ------------------ Radar (mantido) ------------------ */
 
 @Composable
 fun RadarChartTodosAspectos(
@@ -247,7 +370,7 @@ fun RadarChartTodosAspectos(
             val y = centerY + radius * sin(angle).toFloat()
 
             drawLine(Color.LightGray, Offset(centerX, centerY), Offset(x, y), strokeWidth = 2f)
-            // Labels (simples): você pode melhorar com offset/medida de texto se quiser
+            // Labels (simples)
             drawContext.canvas.nativeCanvas.drawText(
                 labels[i],
                 x,
@@ -305,3 +428,8 @@ fun DrawScope.drawPolygon(points: List<Offset>, color: Color) {
     drawPath(path = path, color = color.copy(alpha = 0.4f))
     drawPath(path = path, color = color, style = Stroke(width = 2f))
 }
+
+/* --------- (Opcional) Pizza antiga por proporção numérica — não usada agora ---------
+@Composable
+fun PieChartComparativo(original1: Float, original2: Float, nome1: String, nome2: String) { ... }
+------------------------------------------------------------------------------------- */
