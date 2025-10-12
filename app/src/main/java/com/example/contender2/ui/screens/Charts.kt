@@ -5,7 +5,6 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -24,19 +23,36 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.example.contender2.network.AspectoComparadoDto
-import com.example.contender2.network.ClienteDto
-import com.example.contender2.network.ComentarioDto
-import com.example.contender2.network.OpiniaoDto
 import com.example.contender2.network.RetrofitInstance
+import java.net.URLDecoder
 import kotlin.math.cos
 import kotlin.math.sin
 
+/* =================== Cores =================== */
+
+private val Serie1Color = Color(0xFF6BA9FF) // azul
+private val Serie2Color = Color(0xFFFF80A6) // rosa
+
+// cores fixas das fatias
+private val FemaleColor = Color(0xFF9C88FF) // 1 - feminino
+private val MaleColor   = Color(0xFF55E1C4) // 2 - masculino
+private val OtherColor  = Color(0xFFFFC85C) // 3 - outro/indef.
+
+/* =================== Tela =================== */
+
 @Composable
-fun Charts(id1: Int, id2: Int, nome1: String, nome2: String, navController: NavHostController) {
+fun Charts(
+    id1: Int,
+    id2: Int,
+    nome1: String,
+    nome2: String,
+    navController: NavHostController
+) {
     var aspecto by remember { mutableStateOf("") }
     var graficoSelecionado by remember { mutableStateOf("Histograma") }
     val opcoesDeGrafico = listOf("Histograma", "Pizza", "Radar")
@@ -44,24 +60,23 @@ fun Charts(id1: Int, id2: Int, nome1: String, nome2: String, navController: NavH
     var comparacoes by remember { mutableStateOf<List<AspectoComparadoDto>>(emptyList()) }
     var erro by remember { mutableStateOf<String?>(null) }
 
-    // NOVOS estados para pizza por gênero
-    var clientes by remember { mutableStateOf<Map<Int, ClienteDto>>(emptyMap()) }
-    var comentarios by remember { mutableStateOf<List<ComentarioDto>>(emptyList()) }
-    var opinioes by remember { mutableStateOf<List<OpiniaoDto>>(emptyList()) }
+    // catálogo: aspecto (texto) -> categoria_id (int)
+    var categorias by remember { mutableStateOf<Map<String, Int>>(emptyMap()) }
+
+    // Decodifica os nomes
+    val nome1Dec = remember(nome1) { URLDecoder.decode(nome1, "UTF-8") }
+    val nome2Dec = remember(nome2) { URLDecoder.decode(nome2, "UTF-8") }
 
     LaunchedEffect(id1, id2) {
         try {
             erro = null
-            // Mantém a comparação média por aspecto (para a lista e outros gráficos)
             comparacoes = RetrofitInstance.api.compararAspectos(id1, id2)
-
-            // NOVO: dados crus p/ contar opiniões por gênero na pizza
-            clientes = RetrofitInstance.api.getClientes().associateBy { it.id }
-            comentarios = RetrofitInstance.api.getComentarios()
-            opinioes = RetrofitInstance.api.getOpinioes()
+            // carrega catálogo de categorias para mapear "aspecto" -> categoria_id
+            val cats = RetrofitInstance.api.getCategoriasOpiniao()
+            categorias = cats.associate { it.categoria.lowercase() to it.id }
         } catch (e: Exception) {
             e.printStackTrace()
-            erro = e.message ?: "Erro ao carregar comparação"
+            erro = e.message ?: "Erro ao carregar dados"
         }
     }
 
@@ -136,7 +151,7 @@ fun Charts(id1: Int, id2: Int, nome1: String, nome2: String, navController: NavH
             }
             graficoSelecionado == "Radar" -> {
                 Spacer(Modifier.height(12.dp))
-                RadarChartTodosAspectos(dadosFiltrados, nome1, nome2)
+                RadarChartTodosAspectos(dadosFiltrados, nome1Dec, nome2Dec)
             }
             else -> {
                 Spacer(Modifier.height(12.dp))
@@ -153,34 +168,31 @@ fun Charts(id1: Int, id2: Int, nome1: String, nome2: String, navController: NavH
                         ) {
                             Text("Aspecto: ${dado.aspecto}", fontWeight = FontWeight.Bold)
                             Spacer(modifier = Modifier.height(8.dp))
+
                             when (graficoSelecionado) {
                                 "Histograma" -> BarChartComparativo(
                                     original1 = dado.notaPredita1,
                                     original2 = dado.notaPredita2,
-                                    nome1 = nome1, nome2 = nome2
+                                    nome1 = nome1Dec, nome2 = nome2Dec
                                 )
                                 "Pizza" -> {
-                                    // NOVO: pizza por gênero (homens x mulheres) para cada restaurante
-                                    val (h1, m1) = contarOpinioesPorGenero(
-                                        restauranteId = id1,
-                                        aspecto = dado.aspecto,
-                                        comentarios = comentarios,
-                                        opinioes = opinioes,
-                                        clientes = clientes
-                                    )
-                                    val (h2, m2) = contarOpinioesPorGenero(
-                                        restauranteId = id2,
-                                        aspecto = dado.aspecto,
-                                        comentarios = comentarios,
-                                        opinioes = opinioes,
-                                        clientes = clientes
-                                    )
+                                    // Busca agregados prontos da API /charts/genero
+                                    var g1 by remember(dado.aspecto, id1, categorias) { mutableStateOf(GenderCounts(0,0,0)) }
+                                    var g2 by remember(dado.aspecto, id2, categorias) { mutableStateOf(GenderCounts(0,0,0)) }
+
+                                    LaunchedEffect(dado.aspecto, id1, categorias) {
+                                        g1 = loadGeneroCountsFromApi(id1, dado.aspecto, categorias)
+                                    }
+                                    LaunchedEffect(dado.aspecto, id2, categorias) {
+                                        g2 = loadGeneroCountsFromApi(id2, dado.aspecto, categorias)
+                                    }
 
                                     PieChartGeneroComparativo(
                                         aspecto = dado.aspecto,
-                                        nome1 = nome1, nome2 = nome2,
-                                        homens1 = h1, mulheres1 = m1,
-                                        homens2 = h2, mulheres2 = m2
+                                        nome1 = nome1Dec,
+                                        nome2 = nome2Dec,
+                                        g1 = g1,
+                                        g2 = g2
                                     )
                                 }
                             }
@@ -194,8 +206,12 @@ fun Charts(id1: Int, id2: Int, nome1: String, nome2: String, navController: NavH
     }
 }
 
+/* =================== Util =================== */
+
 /** Normaliza valor de [-1, 1] para [0, 1] só para desenho. */
 private fun normalize01(v: Float): Float = ((v + 1f) / 2f).coerceIn(0f, 1f)
+
+/* =================== Histograma =================== */
 
 @Composable
 fun BarChartComparativo(original1: Float, original2: Float, nome1: String, nome2: String) {
@@ -209,7 +225,7 @@ fun BarChartComparativo(original1: Float, original2: Float, nome1: String, nome2
             modifier = Modifier
                 .fillMaxWidth(valor1 / max)
                 .height(20.dp)
-                .background(Color(0xFF90CAF9))
+                .background(Serie1Color.copy(alpha = 0.75f))
         )
         Spacer(modifier = Modifier.height(4.dp))
         Text("$nome2: ${"%.3f".format(original2)}", fontSize = 12.sp)
@@ -217,41 +233,33 @@ fun BarChartComparativo(original1: Float, original2: Float, nome1: String, nome2
             modifier = Modifier
                 .fillMaxWidth(valor2 / max)
                 .height(20.dp)
-                .background(Color(0xFFF48FB1))
+                .background(Serie2Color.copy(alpha = 0.75f))
         )
     }
 }
 
-/* --------- NOVO: Pizza por gênero (duas pizzas lado a lado) --------- */
+/* =================== Pizza por gênero =================== */
 
-private fun contarOpinioesPorGenero(
+data class GenderCounts(val feminino: Int, val masculino: Int, val outro: Int) {
+    val total get() = feminino + masculino + outro
+}
+
+/** Carrega do backend a contagem por gênero para um restaurante + aspecto.
+ *  Mapeia 'aspecto' -> categoria_id usando o catálogo carregado.
+ */
+private suspend fun loadGeneroCountsFromApi(
     restauranteId: Int,
     aspecto: String,
-    comentarios: List<ComentarioDto>,
-    opinioes: List<OpiniaoDto>,
-    clientes: Map<Int, ClienteDto>
-): Pair<Int, Int> {
-    // comentários do restaurante
-    val comentariosPorRest = comentarios.asSequence()
-        .filter { it.restaurante_id == restauranteId }
-        .associateBy { it.id }
-
-    // opiniões do aspecto nesses comentários
-    var homens = 0
-    var mulheres = 0
-    opinioes.asSequence()
-        .filter { it.aspecto.equals(aspecto, ignoreCase = true) }
-        .forEach { op ->
-            val com = comentariosPorRest[op.comentario_id] ?: return@forEach
-            val genero = clientes[com.cliente_id]?.genero?.lowercase()?.trim()
-            when (genero) {
-                "masculino" -> homens++
-                "feminino" -> mulheres++
-                // outros/indefinidos: ignorar para esta pizza
-            }
-        }
-
-    return homens to mulheres
+    categorias: Map<String, Int>
+): GenderCounts {
+    val catId = categorias[aspecto.lowercase()] ?: return GenderCounts(0, 0, 0)
+    val rows = RetrofitInstance.api.chartGenero(restauranteId, categoriaId = catId)
+    val row = rows.firstOrNull() ?: return GenderCounts(0, 0, 0)
+    return GenderCounts(
+        feminino = row.fem_count,
+        masculino = row.masc_count,
+        outro = row.outros_count
+    )
 }
 
 @Composable
@@ -259,81 +267,99 @@ fun PieChartGeneroComparativo(
     aspecto: String,
     nome1: String,
     nome2: String,
-    homens1: Int, mulheres1: Int,
-    homens2: Int, mulheres2: Int
+    g1: GenderCounts,
+    g2: GenderCounts
 ) {
     Column(Modifier.fillMaxWidth()) {
         Text("Distribuição por gênero • $aspecto", fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(8.dp))
         Row(
             Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            PieGenero(titulo = nome1, homens = homens1, mulheres = mulheres1)
-            PieGenero(titulo = nome2, homens = homens2, mulheres = mulheres2)
+            Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                PieGenero(titulo = nome1, counts = g1)
+            }
+            Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                PieGenero(titulo = nome2, counts = g2)
+            }
         }
     }
 }
 
 @Composable
-private fun PieGenero(titulo: String, homens: Int, mulheres: Int) {
-    val total = homens + mulheres
+private fun PieGenero(titulo: String, counts: GenderCounts) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(titulo, fontWeight = FontWeight.Bold)
+        Text(
+            titulo,
+            fontWeight = FontWeight.Bold,
+            maxLines = 2,
+            lineHeight = 18.sp,
+            overflow = TextOverflow.Ellipsis
+        )
+
         Spacer(Modifier.height(6.dp))
 
-        if (total == 0) {
-            // Sem opiniões
+        if (counts.total == 0) {
             Box(
                 modifier = Modifier
                     .size(150.dp)
                     .background(Color(0xFFECECEC), shape = RoundedCornerShape(75.dp)),
                 contentAlignment = Alignment.Center
-            ) {
-                Text("Sem opiniões", color = Color.Gray, fontSize = 12.sp)
-            }
-        } else {
-            val pHomens = homens.toFloat() / total
-            val pMulheres = mulheres.toFloat() / total
-            val sweepH = pHomens * 360f
-            val sweepM = pMulheres * 360f
+            ) { Text("Sem opiniões", color = Color.Gray, fontSize = 12.sp) }
+            return
+        }
 
-            Canvas(modifier = Modifier.size(150.dp)) {
-                drawArc(
-                    color = Color(0xFF64B5F6), // homens
-                    startAngle = 0f,
-                    sweepAngle = sweepH,
-                    useCenter = true
-                )
-                drawArc(
-                    color = Color(0xFFF06292), // mulheres
-                    startAngle = sweepH,
-                    sweepAngle = sweepM,
-                    useCenter = true
-                )
-            }
+        val total = counts.total.toFloat()
+        val fatias = listOf(
+            counts.feminino to FemaleColor,
+            counts.masculino to MaleColor,
+            counts.outro to OtherColor
+        )
 
-            Spacer(Modifier.height(6.dp))
-
-            // Legenda com quantidades + %
-            Column(horizontalAlignment = Alignment.Start) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(10.dp).background(Color(0xFF64B5F6)))
-                    Spacer(Modifier.width(6.dp))
-                    Text("Homens: $homens (${String.format("%.0f", pHomens * 100)}%)", fontSize = 12.sp)
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(10.dp).background(Color(0xFFF06292)))
-                    Spacer(Modifier.width(6.dp))
-                    Text("Mulheres: $mulheres (${String.format("%.0f", pMulheres * 100)}%)", fontSize = 12.sp)
+        Canvas(modifier = Modifier.size(150.dp)) {
+            var start = -90f
+            fatias.forEach { (valor, cor) ->
+                if (valor > 0) {
+                    val sweep = 360f * (valor / total)
+                    drawArc(color = cor, startAngle = start, sweepAngle = sweep, useCenter = true)
+                    start += sweep
                 }
             }
+            // anel central opcional
+            drawCircle(
+                color = Color.White.copy(alpha = 0.6f),
+                radius = size.minDimension * 0.28f,
+                center = center
+            )
+        }
+
+        Spacer(Modifier.height(6.dp))
+
+        // Legenda + contagens/percentuais (1 casa)
+        val pF = if (total > 0f) "%.1f".format(counts.feminino / total * 100f) else "0.0"
+        val pM = if (total > 0f) "%.1f".format(counts.masculino / total * 100f) else "0.0"
+        val pO = if (total > 0f) "%.1f".format(counts.outro     / total * 100f) else "0.0"
+
+        Column(horizontalAlignment = Alignment.Start) {
+            LegendGeneroRow("Feminino: ${counts.feminino} (${pF}%)", FemaleColor)
+            LegendGeneroRow("Masculino: ${counts.masculino} (${pM}%)", MaleColor)
+            LegendGeneroRow("Outro/Indef.: ${counts.outro} (${pO}%)", OtherColor)
         }
     }
 }
 
-/* ------------------ Radar (mantido) ------------------ */
+@Composable
+private fun LegendGeneroRow(text: String, color: Color) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(10.dp).background(color, RoundedCornerShape(2.dp)))
+        Spacer(Modifier.width(6.dp))
+        Text(text, fontSize = 12.sp)
+    }
+}
+
+/* =================== Radar =================== */
 
 @Composable
 fun RadarChartTodosAspectos(
@@ -341,95 +367,125 @@ fun RadarChartTodosAspectos(
     nomeRestaurante1: String,
     nomeRestaurante2: String
 ) {
-    val orig1 = aspectos.map { it.notaPredita1 }
-    val orig2 = aspectos.map { it.notaPredita2 }
-    val labels = aspectos.map { it.aspecto }
+    val MAX_AXES = 17
+    val dados = aspectos.sortedBy { it.aspecto.lowercase() }.take(MAX_AXES)
 
-    // para desenho usamos valores normalizados [0,1]
-    val valores1 = orig1.map { normalize01(it) }
-    val valores2 = orig2.map { normalize01(it) }
+    if (dados.isEmpty()) { Text("Sem dados para o gráfico de radar."); return }
+    if (dados.size < 3) { Text("O gráfico de radar precisa de pelo menos 3 categorias."); return }
 
-    val raio = 100.dp
+    val labels = dados.map { it.aspecto }
+    val valores1 = dados.map { normalize01(it.notaPredita1) }
+    val valores2 = dados.map { normalize01(it.notaPredita2) }
+
+    val raioDp = 120.dp
+    val labelPadDp = 16.dp
 
     Canvas(
         modifier = Modifier
             .fillMaxWidth()
-            .height(300.dp)
-            .padding(16.dp)
+            .height(360.dp)
+            .padding(8.dp)
     ) {
-        val centerX = size.width / 2
-        val centerY = size.height / 2
-        val radius = raio.toPx()
-        val count = labels.size.coerceAtLeast(1)
-        val angleStep = (2 * Math.PI / count).toFloat()
+        val cx = size.width / 2f
+        val cy = size.height / 2f
+        val radius = raioDp.toPx()
+        val labelPad = labelPadDp.toPx()
+        val count = labels.size
+        val angleStep = (2.0 * Math.PI / count).toFloat()
 
-        // Eixos + rótulos
-        for (i in labels.indices) {
-            val angle = angleStep * i - Math.PI / 2
-            val x = centerX + radius * cos(angle).toFloat()
-            val y = centerY + radius * sin(angle).toFloat()
-
-            drawLine(Color.LightGray, Offset(centerX, centerY), Offset(x, y), strokeWidth = 2f)
-            // Labels (simples)
-            drawContext.canvas.nativeCanvas.drawText(
-                labels[i],
-                x,
-                y,
-                android.graphics.Paint().apply {
-                    color = android.graphics.Color.BLACK
-                    textSize = 28f
-                }
+        // grade
+        val rings = 4
+        repeat(rings) { i ->
+            val r = radius * (i + 1) / rings
+            drawCircle(
+                color = Color(0xFFE0E0E0),
+                radius = r,
+                center = Offset(cx, cy),
+                style = Stroke(width = 1.5f)
             )
         }
 
-        fun gerarPontos(valores: List<Float>): List<Offset> =
-            valores.mapIndexed { i, valor ->
-                val ang = angleStep * i - Math.PI / 2
-                val raioLocal = (valor) * radius
-                Offset(
-                    centerX + raioLocal * cos(ang).toFloat(),
-                    centerY + raioLocal * sin(ang).toFloat()
-                )
+        // eixos + labels
+        val labelPaint = android.graphics.Paint().apply {
+            color = android.graphics.Color.DKGRAY
+            textSize = 22f
+            isAntiAlias = true
+        }
+        for (i in 0 until count) {
+            val ang = angleStep * i - Math.PI.toFloat() / 2f
+            val x = cx + radius * cos(ang)
+            val y = cy + radius * sin(ang)
+            drawLine(
+                color = Color(0xFFBDBDBD),
+                start = Offset(cx, cy),
+                end = Offset(x, y),
+                strokeWidth = 1.5f
+            )
+            val lx = cx + (radius + labelPad) * cos(ang)
+            val ly = cy + (radius + labelPad) * sin(ang)
+            drawContext.canvas.nativeCanvas.drawText(labels[i], lx, ly, labelPaint)
+        }
+
+        fun pontos(vals: List<Float>): List<Offset> =
+            vals.mapIndexed { i, v ->
+                val ang = angleStep * i - Math.PI.toFloat() / 2f
+                val rLocal = (v.coerceIn(0f, 1f)) * radius
+                Offset(cx + rLocal * cos(ang), cy + rLocal * sin(ang))
             }
 
-        val pontos1 = gerarPontos(valores1)
-        drawPolygon(pontos1, color = Color(0xFF90CAF9))
+        val p1 = pontos(valores1); drawPolygon(p1, color = Serie1Color)
+        val p2 = pontos(valores2); drawPolygon(p2, color = Serie2Color)
 
-        val pontos2 = gerarPontos(valores2)
-        drawPolygon(pontos2, color = Color(0xFFF48FB1))
-
-        drawCircle(Color.Gray, radius = radius, center = Offset(centerX, centerY), style = Stroke(2f))
+        drawCircle(color = Color.Gray, radius = radius, center = Offset(cx, cy), style = Stroke(width = 2f))
     }
 
-    Row(
-        Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceEvenly
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(12.dp).background(Color(0xFF90CAF9)))
-            Spacer(Modifier.width(4.dp))
-            Text(nomeRestaurante1)
-        }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(12.dp).background(Color(0xFFF48FB1)))
-            Spacer(Modifier.width(4.dp))
-            Text(nomeRestaurante2)
-        }
-    }
+    // Estes componentes (LegendComparacao/LegendItemData) ficam no seu arquivo Legend.kt
+    LegendComparacao(
+        itens = listOf(
+            LegendItemData(label = nomeRestaurante1, color = Serie1Color),
+            LegendItemData(label = nomeRestaurante2, color = Serie2Color)
+        ),
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+    )
 }
 
-fun DrawScope.drawPolygon(points: List<Offset>, color: Color) {
-    if (points.size < 2) return
+private fun DrawScope.drawPolygon(
+    points: List<Offset>,
+    color: Color,
+    fillAlpha: Float = 0.40f,
+    strokeWidth: Float = 2f
+) {
+    if (points.size < 3) return
     val path = Path().apply {
         moveTo(points[0].x, points[0].y)
         for (i in 1 until points.size) lineTo(points[i].x, points[i].y)
         close()
     }
-    drawPath(path = path, color = color.copy(alpha = 0.4f))
-    drawPath(path = path, color = color, style = Stroke(width = 2f))
+    drawPath(path = path, color = color.copy(alpha = fillAlpha))
+    drawPath(path = path, color = color, style = Stroke(width = strokeWidth))
 }
 
-/* --------- (Opcional) Pizza antiga por proporção numérica — não usada agora ---------
 @Composable
-fun PieChartComparativo(original1: Float, original2: Float, nome1: String, nome2: String) { ... }
-------------------------------------------------------------------------------------- */
+private fun LegendItem(
+    label: String,
+    color: Color,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            Modifier
+                .size(14.dp)
+                .background(color, RoundedCornerShape(3.dp))
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            maxLines = 2,
+            overflow = TextOverflow.Clip
+        )
+    }
+}

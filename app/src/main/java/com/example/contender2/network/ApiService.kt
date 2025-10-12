@@ -4,7 +4,31 @@ import retrofit2.http.GET
 import retrofit2.http.Path
 import retrofit2.http.Query
 
-// === DTOs da API (apenas dados, sem coisas de UI) ===
+/* ===================== DTOs ===================== */
+
+data class ChartPolaridadeAspectoDto(
+    val restaurante_id: Int,
+    val aspecto: String,
+    val avg_polaridade: Double,
+    val qt_opinioes: Int,
+    val updated_at: String   // use Date se tiver adapter configurado
+)
+
+data class ChartGeneroAspectoDto(
+    val restaurante_id: Int,
+    val categoria_id: Int,
+    val masc_count: Int,
+    val fem_count: Int,
+    val outros_count: Int,
+    val total: Int,
+    val updated_at: String   // use Date se tiver adapter configurado
+)
+
+data class CategoriaOpiniaoDto(
+    val id: Int,
+    val categoria: String
+)
+
 data class RestauranteDto(
     val id: Int,
     val nome: String
@@ -15,34 +39,26 @@ data class ClienteDto(
     val nome: String,
     val email: String? = null,
     val login: String? = null,
-    val genero: String? = null
+    val genero: String? = null   // mantém string; não é usado nos charts
 )
-
-// com.example.contender2.network
 
 data class ComentarioDto(
     val id: Int,
-    val data_publicacao: String?,
+    val data_publicacao: String?,   // deixe como String; parse no app se precisar
     val curtidas: Int? = null,
     val texto: String,
     val titulo: String? = null,
     val url: String? = null,
     val restaurante_id: Int,
     val cliente_id: Int,
-    val autor: String? = null      // <--- NOVO
-)
-
-
-data class CategoriaOpiniaoDto(
-    val id: Int,
-    val categoria: String
+    val autor: String? = null
 )
 
 data class OpiniaoDto(
     val id: Int,
     val aspecto: String,
-    val sentimento: String?,       // "positivo" | "negativo" | "neutro"
-    val polaridade: Float?,        // -1..1
+    val sentimento: String?,    // adjetivo (não label pos/neg)
+    val polaridade: Float?,     // -1..1
     val sentenca: String?,
     val comentario_id: Int,
     val categoria_id: Int?
@@ -54,39 +70,49 @@ data class AspectoComparadoDto(
     val notaPredita2: Float
 )
 
-// === Endpoints ===
+/* ===================== API ===================== */
+
 interface ApiService {
 
-    // Restaurantes
+    // ---- Catálogos e dados brutos (legado) ----
     @GET("restaurantes/")
     suspend fun getRestaurantes(): List<RestauranteDto>
 
-    // Clientes
     @GET("clientes/")
     suspend fun getClientes(): List<ClienteDto>
 
-    // Comentários (substitui /avaliacoes/)
     @GET("comentarios/")
     suspend fun getComentarios(): List<ComentarioDto>
 
-    // NOVO: comentários de um restaurante já com 'autor'
+    // Comentários de um restaurante já com 'autor'
     @GET("comentarios/restaurante/{restaurante_id}")
     suspend fun getComentariosPorRestaurante(
         @Path("restaurante_id") restauranteId: Int
     ): List<ComentarioDto>
 
-    // Opiniões (1:N por comentário)
     @GET("opinioes/")
     suspend fun getOpinioes(): List<OpiniaoDto>
 
-    // Categorias (opcional)
     @GET("categorias-opiniao/")
     suspend fun getCategoriasOpiniao(): List<CategoriaOpiniaoDto>
 
-    // Comparação (mesma assinatura de antes)
+    // ---- Comparação (já existente) ----
     @GET("comparar_aspectos")
     suspend fun compararAspectos(
         @Query("restaurante1_id") restaurante1Id: Int,
         @Query("restaurante2_id") restaurante2Id: Int
     ): List<AspectoComparadoDto>
+
+    // ---- NOVO: Charts (tabelas de resumo) ----
+    @GET("charts/polaridade/{restaurante_id}")
+    suspend fun chartPolaridade(
+        @Path("restaurante_id") restauranteId: Int,
+        @Query("aspecto") aspecto: String? = null
+    ): List<ChartPolaridadeAspectoDto>
+
+    @GET("charts/genero/{restaurante_id}")
+    suspend fun chartGenero(
+        @Path("restaurante_id") restauranteId: Int,
+        @Query("categoria_id") categoriaId: Int? = null
+    ): List<ChartGeneroAspectoDto>
 }

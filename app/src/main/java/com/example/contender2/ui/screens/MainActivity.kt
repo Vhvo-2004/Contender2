@@ -110,32 +110,7 @@ fun HomeScreen(navController: NavController) {
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         // Barra "Pesquisar Restaurante" (atalho para Comparison)
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(Color(0xFFF0E9F6), shape = RoundedCornerShape(24.dp))
-                .padding(horizontal = 16.dp, vertical = 12.dp)
-        ) {
-            Icon(imageVector = Icons.Default.Menu, contentDescription = "Menu")
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = "Pesquisar Restaurante",
-                color = Color.Gray,
-                modifier = Modifier.weight(1f)
-            )
-            Icon(
-                imageVector = Icons.Default.Search,
-                contentDescription = "Search",
-                modifier = Modifier.clickable {
-                    val r1 = resolveR1()
-                    val r2 = resolveR2()
-                    if (r1 != null && r2 != null) {
-                        navController.navigate("Comparison/${r1.id}/${r2.id}")
-                    }
-                }
-            )
-        }
+        
 
         Spacer(modifier = Modifier.height(24.dp))
 
