@@ -39,6 +39,8 @@ import kotlin.math.sin
 private val Serie1Color = Color(0xFF6BA9FF) // azul
 private val Serie2Color = Color(0xFFFF80A6) // rosa
 
+private const val UnknownCategoryLabel = "Outros"
+
 private val AspectPalette = listOf(
     Color(0xFF6BA9FF), // azul
     Color(0xFFFF80A6), // rosa
@@ -69,6 +71,7 @@ fun Charts(
 
     var polaridadesRest1 by remember { mutableStateOf<List<ChartPolaridadeAspectoDto>>(emptyList()) }
     var polaridadesRest2 by remember { mutableStateOf<List<ChartPolaridadeAspectoDto>>(emptyList()) }
+    var aspectoCategoria by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
 
     // Decodifica os nomes
     val nome1Dec = remember(nome1) { URLDecoder.decode(nome1, "UTF-8") }
@@ -84,6 +87,28 @@ fun Charts(
             e.printStackTrace()
             erro = e.message ?: "Erro ao carregar dados"
         }
+
+        val categoriasMap = runCatching { RetrofitInstance.api.getCategoriasOpiniao() }
+            .getOrElse { emptyList() }
+            .associate { it.id to it.categoria }
+        val opinioes = runCatching { RetrofitInstance.api.getOpinioes() }
+            .getOrElse { emptyList() }
+
+        val aspectToCategory = mutableMapOf<String, String>()
+        if (categoriasMap.isNotEmpty()) {
+            opinioes.forEach { opiniao ->
+                val aspectoBruto = opiniao.aspecto
+                val categoriaId = opiniao.categoria_id
+                if (aspectoBruto.isNotBlank() && categoriaId != null) {
+                    val categoriaNome = categoriasMap[categoriaId]
+                    if (!categoriaNome.isNullOrBlank()) {
+                        val chave = aspectoBruto.lowercase()
+                        aspectToCategory.putIfAbsent(chave, categoriaNome)
+                    }
+                }
+            }
+        }
+        aspectoCategoria = aspectToCategory
     }
 
     val dadosFiltrados = comparacoes.filter {
@@ -91,6 +116,12 @@ fun Charts(
     }
 
     val aspectoColorProvider = rememberAspectColorProvider()
+    val categoriaResolver = remember(aspectoCategoria) {
+        { aspectoBruto: String ->
+            val chave = aspectoBruto.lowercase()
+            aspectoCategoria[chave] ?: UnknownCategoryLabel
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -175,7 +206,8 @@ fun Charts(
                         nome2 = nome2Dec,
                         dados1 = chart1,
                         dados2 = chart2,
-                        colorForAspect = aspectoColorProvider
+                        colorForAspect = aspectoColorProvider,
+                        categoryForAspect = categoriaResolver
                     )
                 }
             }
@@ -269,24 +301,60 @@ fun PieChartAspectoComparativo(
     nome2: String,
     dados1: List<ChartPolaridadeAspectoDto>,
     dados2: List<ChartPolaridadeAspectoDto>,
-    colorForAspect: (String) -> Color
+    colorForAspect: (String) -> Color,
+    categoryForAspect: (String) -> String
 ) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(24.dp)
+            .verticalScroll(rememberScrollState())
     ) {
-        PieChartRestaurante(
-            titulo = nome1,
-            dados = dados1,
-            colorForAspect = colorForAspect
-        )
-        PieChartRestaurante(
-            titulo = nome2,
-            dados = dados2,
-            colorForAspect = colorForAspect
-        )
+        val categoriasOrdenadas = (dados1 + dados2)
+            .map { categoryForAspect(it.aspecto) }
+            .distinct()
+            .sortedWith(compareBy<String> { if (it == UnknownCategoryLabel) 1 else 0 }.thenBy { it })
+
+        var exibiuAlgumaCategoria = false
+
+        categoriasOrdenadas.forEach { categoria ->
+            val dadosCategoria1 = dados1.filter { categoryForAspect(it.aspecto) == categoria }
+            val dadosCategoria2 = dados2.filter { categoryForAspect(it.aspecto) == categoria }
+            val temDadosCategoria = dadosCategoria1.any { it.qt_opinioes > 0 } ||
+                dadosCategoria2.any { it.qt_opinioes > 0 }
+
+            if (!temDadosCategoria) return@forEach
+
+            if (exibiuAlgumaCategoria) {
+                Spacer(Modifier.height(24.dp))
+                Divider()
+                Spacer(Modifier.height(24.dp))
+            }
+
+            exibiuAlgumaCategoria = true
+
+            Text(
+                text = categoria,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 18.sp
+            )
+            Spacer(Modifier.height(12.dp))
+
+            PieChartRestaurante(
+                titulo = nome1,
+                dados = dadosCategoria1,
+                colorForAspect = colorForAspect
+            )
+            Spacer(Modifier.height(16.dp))
+            PieChartRestaurante(
+                titulo = nome2,
+                dados = dadosCategoria2,
+                colorForAspect = colorForAspect
+            )
+        }
+
+        if (!exibiuAlgumaCategoria) {
+            Text("Nenhum dado de aspectos categorizados para exibir.")
+        }
     }
 }
 
