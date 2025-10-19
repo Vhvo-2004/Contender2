@@ -5,7 +5,14 @@ import retrofit2.http.Path
 import retrofit2.http.Query
 
 /* ===================== DTOs ===================== */
-
+data class ChartPolaridadeCategoriaDto(
+    val restaurante_id: Int,
+    val categoria_id: Int,
+    val categoria_nome: String,
+    val qt_opinioes: Int,
+    val avg_polaridade: Double,
+    val updated_at: String
+)
 data class ChartPolaridadeAspectoDto(
     val restaurante_id: Int,
     val aspecto: String,
@@ -109,6 +116,10 @@ interface ApiService {
         @Path("restaurante_id") restauranteId: Int,
         @Query("aspecto") aspecto: String? = null
     ): List<ChartPolaridadeAspectoDto>
+    @GET("charts/polaridade-categoria/{restaurante_id}")
+    suspend fun chartPolaridadeCategoria(
+        @Path("restaurante_id") restauranteId: Int
+    ): List<ChartPolaridadeCategoriaDto>
 
     @GET("charts/genero/{restaurante_id}")
     suspend fun chartGenero(
