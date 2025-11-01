@@ -161,15 +161,10 @@ fun Charts(
             Button(onClick = { /* filtro já é reativo */ }) { Text("Pesquisar") }
         }
 
-        when {
-            erro != null -> {
-                Text("Erro: $erro", color = Color.Red)
-            }
-            dadosFiltrados.isEmpty() -> {
-                Spacer(Modifier.height(12.dp))
-                Text("Nenhum dado para exibir com o filtro atual.")
-            }
-            graficoSelecionado == "Pizza" -> {
+        if (erro != null) {
+            Text("Erro: $erro", color = Color.Red)
+        } else when (graficoSelecionado) {
+            "Pizza" -> {
                 Spacer(Modifier.height(12.dp))
 
                 val categoriasRest1 = polaridadesCategoriaRest1.filter { it.qt_opinioes > 0 }
@@ -201,57 +196,71 @@ fun Charts(
                     }
                 }
             }
-            graficoSelecionado == "Radar" -> {
+            "Radar" -> {
                 Spacer(Modifier.height(12.dp))
-                RadarChartTodosAspectos(dadosFiltrados, nome1Dec, nome2Dec)
+                if (dadosFiltrados.isEmpty()) {
+                    Text("Nenhum dado para exibir com o filtro atual.")
+                } else {
+                    RadarChartTodosAspectos(dadosFiltrados, nome1Dec, nome2Dec)
+                }
             }
-            graficoSelecionado == "Histograma" -> {
+            else -> {
                 Spacer(Modifier.height(12.dp))
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .verticalScroll(rememberScrollState())
                 ) {
-                    if (opinioesTempoRest1.isNotEmpty() || opinioesTempoRest2.isNotEmpty()) {
-                        TemporalComparativoChart(
-                            nome1 = nome1Dec,
-                            nome2 = nome2Dec,
-                            opinioes1 = opinioesTempoRest1,
-                            opinioes2 = opinioesTempoRest2
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Divider()
-                        Spacer(modifier = Modifier.height(16.dp))
-                    }
+                    val temTemporal = opinioesTempoRest1.isNotEmpty() || opinioesTempoRest2.isNotEmpty()
+                    val temMediaMensal = mediasMensaisRest1.isNotEmpty() || mediasMensaisRest2.isNotEmpty()
+                    val temComparacoes = dadosFiltrados.isNotEmpty()
 
-                    if (mediasMensaisRest1.isNotEmpty() || mediasMensaisRest2.isNotEmpty()) {
-                        MonthlyMediaSection(
-                            nomeRestaurante1 = nome1Dec,
-                            nomeRestaurante2 = nome2Dec,
-                            dadosRest1 = mediasMensaisRest1,
-                            dadosRest2 = mediasMensaisRest2
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Divider()
-                        Spacer(modifier = Modifier.height(16.dp))
-                    }
-
-                    dadosFiltrados.forEach { dado ->
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 12.dp)
-                        ) {
-                            Text("Aspecto: ${dado.aspecto}", fontWeight = FontWeight.Bold)
-                            Spacer(modifier = Modifier.height(8.dp))
-
-                            BarChartComparativo(
-                                original1 = dado.notaPredita1,
-                                original2 = dado.notaPredita2,
-                                nome1 = nome1Dec, nome2 = nome2Dec
+                    if (!temTemporal && !temMediaMensal && !temComparacoes) {
+                        Text("Nenhum dado para exibir com o filtro atual.")
+                    } else {
+                        if (temTemporal) {
+                            TemporalComparativoChart(
+                                nome1 = nome1Dec,
+                                nome2 = nome2Dec,
+                                opinioes1 = opinioesTempoRest1,
+                                opinioes2 = opinioesTempoRest2
                             )
-                            Spacer(modifier = Modifier.height(12.dp))
+                            Spacer(modifier = Modifier.height(16.dp))
                             Divider()
+                            Spacer(modifier = Modifier.height(16.dp))
+                        }
+
+                        if (temMediaMensal) {
+                            MonthlyMediaSection(
+                                nomeRestaurante1 = nome1Dec,
+                                nomeRestaurante2 = nome2Dec,
+                                dadosRest1 = mediasMensaisRest1,
+                                dadosRest2 = mediasMensaisRest2
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Divider()
+                            Spacer(modifier = Modifier.height(16.dp))
+                        }
+
+                        if (temComparacoes) {
+                            dadosFiltrados.forEach { dado ->
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 12.dp)
+                                ) {
+                                    Text("Aspecto: ${dado.aspecto}", fontWeight = FontWeight.Bold)
+                                    Spacer(modifier = Modifier.height(8.dp))
+
+                                    BarChartComparativo(
+                                        original1 = dado.notaPredita1,
+                                        original2 = dado.notaPredita2,
+                                        nome1 = nome1Dec, nome2 = nome2Dec
+                                    )
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                    Divider()
+                                }
+                            }
                         }
                     }
                 }
