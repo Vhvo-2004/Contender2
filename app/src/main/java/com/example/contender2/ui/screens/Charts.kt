@@ -155,19 +155,6 @@ fun Charts(
             Button(onClick = { /* filtro já é reativo */ }) { Text("Pesquisar") }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
-        if (mediasMensaisRest1.isNotEmpty() || mediasMensaisRest2.isNotEmpty()) {
-            MonthlyMediaSection(
-                nomeRestaurante1 = nome1Dec,
-                nomeRestaurante2 = nome2Dec,
-                dadosRest1 = mediasMensaisRest1,
-                dadosRest2 = mediasMensaisRest2
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-        }
-
-        Divider()
-
         when {
             erro != null -> {
                 Text("Erro: $erro", color = Color.Red)
@@ -212,13 +199,25 @@ fun Charts(
                 Spacer(Modifier.height(12.dp))
                 RadarChartTodosAspectos(dadosFiltrados, nome1Dec, nome2Dec)
             }
-            else -> {
+            graficoSelecionado == "Histograma" -> {
                 Spacer(Modifier.height(12.dp))
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .verticalScroll(rememberScrollState())
                 ) {
+                    if (mediasMensaisRest1.isNotEmpty() || mediasMensaisRest2.isNotEmpty()) {
+                        MonthlyMediaSection(
+                            nomeRestaurante1 = nome1Dec,
+                            nomeRestaurante2 = nome2Dec,
+                            dadosRest1 = mediasMensaisRest1,
+                            dadosRest2 = mediasMensaisRest2
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Divider()
+                        Spacer(modifier = Modifier.height(16.dp))
+                    }
+
                     dadosFiltrados.forEach { dado ->
                         Column(
                             modifier = Modifier
@@ -228,13 +227,11 @@ fun Charts(
                             Text("Aspecto: ${dado.aspecto}", fontWeight = FontWeight.Bold)
                             Spacer(modifier = Modifier.height(8.dp))
 
-                            when (graficoSelecionado) {
-                                "Histograma" -> BarChartComparativo(
-                                    original1 = dado.notaPredita1,
-                                    original2 = dado.notaPredita2,
-                                    nome1 = nome1Dec, nome2 = nome2Dec
-                                )
-                            }
+                            BarChartComparativo(
+                                original1 = dado.notaPredita1,
+                                original2 = dado.notaPredita2,
+                                nome1 = nome1Dec, nome2 = nome2Dec
+                            )
                             Spacer(modifier = Modifier.height(12.dp))
                             Divider()
                         }
