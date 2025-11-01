@@ -3,6 +3,7 @@ package com.example.contender2.ui.screens
 import android.R.attr.maxWidth
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -26,11 +27,13 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.example.contender2.network.AspectoComparadoDto
 import com.example.contender2.network.ChartPolaridadeCategoriaDto
+import com.example.contender2.network.MediaMensalDto
 import com.example.contender2.network.RetrofitInstance
 import java.net.URLDecoder
 import kotlin.math.cos
@@ -71,6 +74,8 @@ fun Charts(
 
     var polaridadesCategoriaRest1 by remember { mutableStateOf<List<ChartPolaridadeCategoriaDto>>(emptyList()) }
     var polaridadesCategoriaRest2 by remember { mutableStateOf<List<ChartPolaridadeCategoriaDto>>(emptyList()) }
+    var mediasMensaisRest1 by remember { mutableStateOf<List<MediaMensalDto>>(emptyList()) }
+    var mediasMensaisRest2 by remember { mutableStateOf<List<MediaMensalDto>>(emptyList()) }
 
     // Decodifica os nomes
     val nome1Dec = remember(nome1) { URLDecoder.decode(nome1, "UTF-8") }
@@ -82,6 +87,8 @@ fun Charts(
             comparacoes = RetrofitInstance.api.compararAspectos(id1, id2)
             polaridadesCategoriaRest1 = RetrofitInstance.api.chartPolaridadeCategoria(id1)
             polaridadesCategoriaRest2 = RetrofitInstance.api.chartPolaridadeCategoria(id2)
+            mediasMensaisRest1 = RetrofitInstance.api.getMediaMensal(id1)
+            mediasMensaisRest2 = RetrofitInstance.api.getMediaMensal(id2)
         } catch (e: Exception) {
             e.printStackTrace()
             erro = e.message ?: "Erro ao carregar dados"
@@ -149,6 +156,16 @@ fun Charts(
         }
 
         Spacer(modifier = Modifier.height(16.dp))
+        if (mediasMensaisRest1.isNotEmpty() || mediasMensaisRest2.isNotEmpty()) {
+            MonthlyMediaSection(
+                nomeRestaurante1 = nome1Dec,
+                nomeRestaurante2 = nome2Dec,
+                dadosRest1 = mediasMensaisRest1,
+                dadosRest2 = mediasMensaisRest2
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+
         Divider()
 
         when {
@@ -232,6 +249,154 @@ fun Charts(
 
 /** Normaliza valor de [-1, 1] para [0, 1] só para desenho. */
 private fun normalize01(v: Float): Float = ((v + 1f) / 2f).coerceIn(0f, 1f)
+
+/* =================== Média Mensal =================== */
+
+@Composable
+private fun MonthlyMediaSection(
+    nomeRestaurante1: String,
+    nomeRestaurante2: String,
+    dadosRest1: List<MediaMensalDto>,
+    dadosRest2: List<MediaMensalDto>
+) {
+    val mesesOrdenados = remember(dadosRest1, dadosRest2) {
+        (dadosRest1.map { it.ano_mes } + dadosRest2.map { it.ano_mes })
+            .distinct()
+            .sorted()
+    }
+
+    if (mesesOrdenados.isEmpty()) return
+
+    val positivosRest1 = remember(dadosRest1) { dadosRest1.associate { it.ano_mes to polaridadePositiva(it.media_polaridade) } }
+    val positivosRest2 = remember(dadosRest2) { dadosRest2.associate { it.ano_mes to polaridadePositiva(it.media_polaridade) } }
+    val negativosRest1 = remember(dadosRest1) { dadosRest1.associate { it.ano_mes to polaridadeNegativa(it.media_polaridade) } }
+    val negativosRest2 = remember(dadosRest2) { dadosRest2.associate { it.ano_mes to polaridadeNegativa(it.media_polaridade) } }
+
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        color = Color(0xFFF8F2FF),
+        border = BorderStroke(1.dp, Color(0xFFB39DDB).copy(alpha = 0.4f))
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = "Média de polaridade mensal",
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 18.sp
+            )
+
+            Spacer(Modifier.height(12.dp))
+
+            LegendComparacao(
+                itens = listOf(
+                    LegendItemData(label = nomeRestaurante1, color = Serie1Color),
+                    LegendItemData(label = nomeRestaurante2, color = Serie2Color)
+                )
+            )
+
+            Spacer(Modifier.height(16.dp))
+
+            Text("Positivo", fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(8.dp))
+            MonthlyBarChart(
+                mesesOrdenados = mesesOrdenados,
+                valoresRest1 = positivosRest1,
+                valoresRest2 = positivosRest2
+            )
+
+            Spacer(Modifier.height(16.dp))
+
+            Text("Negativo", fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(8.dp))
+            MonthlyBarChart(
+                mesesOrdenados = mesesOrdenados,
+                valoresRest1 = negativosRest1,
+                valoresRest2 = negativosRest2
+            )
+        }
+    }
+}
+
+@Composable
+private fun MonthlyBarChart(
+    mesesOrdenados: List<String>,
+    valoresRest1: Map<String, Float>,
+    valoresRest2: Map<String, Float>,
+    chartHeight: Dp = 160.dp
+) {
+    val scrollState = rememberScrollState()
+    val valoresMaximos = remember(mesesOrdenados, valoresRest1, valoresRest2) {
+        mesesOrdenados.flatMap { mes ->
+            listOf(valoresRest1[mes] ?: 0f, valoresRest2[mes] ?: 0f)
+        }
+    }
+    val maxValor = valoresMaximos.maxOrNull()?.coerceAtLeast(1f) ?: 1f
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(scrollState),
+        horizontalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        mesesOrdenados.forEach { mes ->
+            val valor1 = valoresRest1[mes] ?: 0f
+            val valor2 = valoresRest2[mes] ?: 0f
+            val label = formatarMesLabel(mes)
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Bottom
+            ) {
+                Box(
+                    modifier = Modifier
+                        .height(chartHeight)
+                        .width(48.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxSize(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.Bottom
+                    ) {
+                        Bar(
+                            valor = valor1,
+                            maxValor = maxValor,
+                            color = Serie1Color
+                        )
+                        Bar(
+                            valor = valor2,
+                            maxValor = maxValor,
+                            color = Serie2Color
+                        )
+                    }
+                }
+                Spacer(Modifier.height(6.dp))
+                Text(label, fontSize = 12.sp)
+            }
+        }
+    }
+}
+
+@Composable
+private fun RowScope.Bar(valor: Float, maxValor: Float, color: Color) {
+    val alturaRelativa = if (maxValor == 0f) 0f else (valor / maxValor).coerceIn(0f, 1f)
+    Box(
+        modifier = Modifier
+            .weight(1f)
+            .fillMaxHeight(alturaRelativa)
+            .clip(RoundedCornerShape(4.dp))
+            .background(color.copy(alpha = 0.8f))
+    )
+}
+
+private fun polaridadePositiva(valor: Float): Float = (valor.coerceAtLeast(0f) * 100f).coerceAtMost(100f)
+
+private fun polaridadeNegativa(valor: Float): Float = (-valor.coerceAtMost(0f) * 100f).coerceAtMost(100f)
+
+private fun formatarMesLabel(anoMes: String): String {
+    val partes = anoMes.split("-")
+    val nomes = listOf("jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez")
+    val mes = partes.getOrNull(1)?.toIntOrNull()
+    return if (mes != null && mes in 1..12) nomes[mes - 1] else anoMes
+}
 
 /* =================== Histograma =================== */
 
