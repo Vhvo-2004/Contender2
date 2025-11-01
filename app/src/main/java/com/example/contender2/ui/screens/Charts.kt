@@ -3,13 +3,13 @@ package com.example.contender2.ui.screens
 import android.R.attr.maxWidth
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
@@ -20,11 +20,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -319,69 +321,135 @@ private fun MonthlyBarChart(
     mesesOrdenados: List<String>,
     valoresRest1: Map<String, Float>,
     valoresRest2: Map<String, Float>,
-    chartHeight: Dp = 160.dp
+    chartHeight: Dp = 180.dp
 ) {
-    val scrollState = rememberScrollState()
-    val valoresMaximos = remember(mesesOrdenados, valoresRest1, valoresRest2) {
-        mesesOrdenados.flatMap { mes ->
-            listOf(valoresRest1[mes] ?: 0f, valoresRest2[mes] ?: 0f)
-        }
-    }
-    val maxValor = valoresMaximos.maxOrNull()?.coerceAtLeast(1f) ?: 1f
+    if (mesesOrdenados.isEmpty()) return
 
-    Row(
+    val scrollState = rememberScrollState()
+    val density = LocalDensity.current
+
+    val leftPadding = 48.dp
+    val rightPadding = 24.dp
+    val topPadding = 16.dp
+    val bottomPadding = 48.dp
+    val groupWidth = 52.dp
+    val groupSpacing = 16.dp
+    val barSpacing = 8.dp
+
+    val totalGroupsWidth = groupWidth * mesesOrdenados.size
+    val totalSpacing = groupSpacing * (mesesOrdenados.size - 1).coerceAtLeast(0)
+    val chartWidth = (leftPadding + rightPadding + totalGroupsWidth + totalSpacing)
+        .coerceAtLeast(320.dp)
+
+    val tickValues = listOf(0f, 20f, 40f, 60f, 80f, 100f)
+    val axisColor = Color(0xFFC8A8F0)
+    val gridColor = Color(0xFFEADCF8)
+    val axisStrokeWidth = with(density) { 1.5.dp.toPx() }
+    val gridStrokeWidth = with(density) { 1.dp.toPx() }
+
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .horizontalScroll(scrollState),
-        horizontalArrangement = Arrangement.spacedBy(16.dp)
+            .horizontalScroll(scrollState)
     ) {
-        mesesOrdenados.forEach { mes ->
-            val valor1 = valoresRest1[mes] ?: 0f
-            val valor2 = valoresRest2[mes] ?: 0f
-            val label = formatarMesLabel(mes)
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Bottom
-            ) {
-                Box(
-                    modifier = Modifier
-                        .height(chartHeight)
-                        .width(48.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxSize(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalAlignment = Alignment.Bottom
-                    ) {
-                        Bar(
-                            valor = valor1,
-                            maxValor = maxValor,
-                            color = Serie1Color
-                        )
-                        Bar(
-                            valor = valor2,
-                            maxValor = maxValor,
-                            color = Serie2Color
-                        )
-                    }
-                }
-                Spacer(Modifier.height(6.dp))
-                Text(label, fontSize = 12.sp)
+        Canvas(
+            modifier = Modifier
+                .height(chartHeight + topPadding + bottomPadding)
+                .width(chartWidth)
+        ) {
+            val leftPx = leftPadding.toPx()
+            val rightPx = size.width - rightPadding.toPx()
+            val topPx = topPadding.toPx()
+            val bottomPx = size.height - bottomPadding.toPx()
+            val chartHeightPx = bottomPx - topPx
+            val groupWidthPx = groupWidth.toPx()
+            val groupSpacingPx = groupSpacing.toPx()
+            val barSpacingPx = barSpacing.toPx()
+            val barWidthPx = (groupWidthPx - barSpacingPx) / 2f
+
+            val labelPaint = android.graphics.Paint().apply {
+                color = android.graphics.Color.parseColor("#5A4B81")
+                textSize = with(density) { 13.sp.toPx() }
+                textAlign = android.graphics.Paint.Align.CENTER
+                isAntiAlias = true
+            }
+
+            val axisLabelPaint = android.graphics.Paint().apply {
+                color = android.graphics.Color.parseColor("#7A6AA6")
+                textSize = with(density) { 12.sp.toPx() }
+                isAntiAlias = true
+            }
+
+            // Grid horizontal e labels do eixo Y
+            tickValues.forEach { tick ->
+                val y = bottomPx - (tick / 100f) * chartHeightPx
+                drawLine(
+                    color = gridColor,
+                    start = Offset(leftPx, y),
+                    end = Offset(rightPx, y),
+                    strokeWidth = gridStrokeWidth
+                )
+                drawContext.canvas.nativeCanvas.drawText(
+                    tick.toInt().toString(),
+                    leftPx - with(density) { 12.dp.toPx() },
+                    y + with(density) { 4.dp.toPx() },
+                    axisLabelPaint
+                )
+            }
+
+            // Eixos
+            drawLine(
+                color = axisColor,
+                start = Offset(leftPx, topPx),
+                end = Offset(leftPx, bottomPx),
+                strokeWidth = axisStrokeWidth
+            )
+            drawLine(
+                color = axisColor,
+                start = Offset(leftPx, bottomPx),
+                end = Offset(rightPx, bottomPx),
+                strokeWidth = axisStrokeWidth
+            )
+
+            drawContext.canvas.nativeCanvas.drawText(
+                "y",
+                leftPx - with(density) { 20.dp.toPx() },
+                topPx - with(density) { 4.dp.toPx() },
+                axisLabelPaint
+            )
+
+            val baseYLabel = bottomPx + with(density) { 20.dp.toPx() }
+
+            mesesOrdenados.forEachIndexed { index, mes ->
+                val valor1 = valoresRest1[mes]?.coerceIn(0f, 100f) ?: 0f
+                val valor2 = valoresRest2[mes]?.coerceIn(0f, 100f) ?: 0f
+                val label = formatarMesLabel(mes)
+
+                val groupStart = leftPx + index * (groupWidthPx + groupSpacingPx)
+
+                val bar1Start = groupStart + barSpacingPx / 2f
+                val bar2Start = bar1Start + barWidthPx + barSpacingPx / 2f
+
+                val bar1Height = (valor1 / 100f) * chartHeightPx
+                val bar2Height = (valor2 / 100f) * chartHeightPx
+
+                drawRect(
+                    color = Serie1Color.copy(alpha = 0.85f),
+                    topLeft = Offset(bar1Start, bottomPx - bar1Height),
+                    size = Size(barWidthPx, bar1Height)
+                )
+
+                drawRect(
+                    color = Serie2Color.copy(alpha = 0.85f),
+                    topLeft = Offset(bar2Start, bottomPx - bar2Height),
+                    size = Size(barWidthPx, bar2Height)
+                )
+
+                val labelX = groupStart + groupWidthPx / 2f
+                drawContext.canvas.nativeCanvas.drawText(label, labelX, baseYLabel, labelPaint)
             }
         }
     }
-}
-
-@Composable
-private fun RowScope.Bar(valor: Float, maxValor: Float, color: Color) {
-    val alturaRelativa = if (maxValor == 0f) 0f else (valor / maxValor).coerceIn(0f, 1f)
-    Box(
-        modifier = Modifier
-            .weight(1f)
-            .fillMaxHeight(alturaRelativa)
-            .clip(RoundedCornerShape(4.dp))
-            .background(color.copy(alpha = 0.8f))
-    )
 }
 
 private fun polaridadePositiva(valor: Float): Float = (valor.coerceAtLeast(0f) * 100f).coerceAtMost(100f)
