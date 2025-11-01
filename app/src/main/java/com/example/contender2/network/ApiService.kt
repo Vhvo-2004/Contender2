@@ -76,7 +76,11 @@ data class AspectoComparadoDto(
     val notaPredita1: Float,
     val notaPredita2: Float
 )
-
+data class MediaMensalDto(
+    val ano_mes: String,
+    val media_polaridade: Float,
+    val total_opinioes: Int
+)
 /* ===================== API ===================== */
 
 interface ApiService {
@@ -126,4 +130,11 @@ interface ApiService {
         @Path("restaurante_id") restauranteId: Int,
         @Query("categoria_id") categoriaId: Int? = null
     ): List<ChartGeneroAspectoDto>
+    @GET("graficos/media-mensal/{restaurante_id}")
+    suspend fun getMediaMensal(
+        @Path("restaurante_id") id: Int
+    ): List<MediaMensalDto>
+
+
+
 }

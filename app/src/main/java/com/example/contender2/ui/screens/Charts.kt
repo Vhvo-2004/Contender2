@@ -1,5 +1,6 @@
 package com.example.contender2.ui.screens
 
+import android.R.attr.maxWidth
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -309,12 +310,12 @@ private fun CategoriaPizzaSection(
                 }
             } else {
                 val total = ordenado.sumOf { it.qt_opinioes }
-                BoxWithConstraints(
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(16.dp)
                 ) {
-                    val isCompact = maxWidth < 360.dp
+                    val isCompact = false
 
                     if (isCompact) {
                         Column(
