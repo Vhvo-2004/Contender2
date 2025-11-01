@@ -1,6 +1,5 @@
 package com.example.contender2.ui.screens
 
-import android.R.attr.maxWidth
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -36,6 +35,7 @@ import androidx.navigation.NavHostController
 import com.example.contender2.network.AspectoComparadoDto
 import com.example.contender2.network.ChartPolaridadeCategoriaDto
 import com.example.contender2.network.MediaMensalDto
+import com.example.contender2.network.OpiniaoTemporalDto
 import com.example.contender2.network.RetrofitInstance
 import java.net.URLDecoder
 import kotlin.math.cos
@@ -78,6 +78,8 @@ fun Charts(
     var polaridadesCategoriaRest2 by remember { mutableStateOf<List<ChartPolaridadeCategoriaDto>>(emptyList()) }
     var mediasMensaisRest1 by remember { mutableStateOf<List<MediaMensalDto>>(emptyList()) }
     var mediasMensaisRest2 by remember { mutableStateOf<List<MediaMensalDto>>(emptyList()) }
+    var opinioesTempoRest1 by remember { mutableStateOf<List<OpiniaoTemporalDto>>(emptyList()) }
+    var opinioesTempoRest2 by remember { mutableStateOf<List<OpiniaoTemporalDto>>(emptyList()) }
 
     // Decodifica os nomes
     val nome1Dec = remember(nome1) { URLDecoder.decode(nome1, "UTF-8") }
@@ -91,6 +93,8 @@ fun Charts(
             polaridadesCategoriaRest2 = RetrofitInstance.api.chartPolaridadeCategoria(id2)
             mediasMensaisRest1 = RetrofitInstance.api.getMediaMensal(id1)
             mediasMensaisRest2 = RetrofitInstance.api.getMediaMensal(id2)
+            opinioesTempoRest1 = RetrofitInstance.api.getGraficoTemporal(id1)
+            opinioesTempoRest2 = RetrofitInstance.api.getGraficoTemporal(id2)
         } catch (e: Exception) {
             e.printStackTrace()
             erro = e.message ?: "Erro ao carregar dados"
@@ -208,6 +212,18 @@ fun Charts(
                         .fillMaxWidth()
                         .verticalScroll(rememberScrollState())
                 ) {
+                    if (opinioesTempoRest1.isNotEmpty() || opinioesTempoRest2.isNotEmpty()) {
+                        TemporalComparativoChart(
+                            nome1 = nome1Dec,
+                            nome2 = nome2Dec,
+                            opinioes1 = opinioesTempoRest1,
+                            opinioes2 = opinioesTempoRest2
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Divider()
+                        Spacer(modifier = Modifier.height(16.dp))
+                    }
+
                     if (mediasMensaisRest1.isNotEmpty() || mediasMensaisRest2.isNotEmpty()) {
                         MonthlyMediaSection(
                             nomeRestaurante1 = nome1Dec,
@@ -244,6 +260,138 @@ fun Charts(
     }
 }
 
+/* =================== Gráfico Temporal Comparativo =================== */
+
+@Composable
+private fun TemporalComparativoChart(
+    nome1: String,
+    nome2: String,
+    opinioes1: List<OpiniaoTemporalDto>,
+    opinioes2: List<OpiniaoTemporalDto>
+) {
+    val meses = remember(opinioes1, opinioes2) {
+        (opinioes1.map { it.ano_mes } + opinioes2.map { it.ano_mes })
+            .distinct()
+            .sorted()
+    }
+
+    if (meses.isEmpty()) return
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 12.dp)
+    ) {
+        Text(
+            text = "Opiniões ao longo do tempo",
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 18.sp
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        LegendComparacao(
+            itens = listOf(
+                LegendItemData(label = nome1, color = Serie1Color),
+                LegendItemData(label = nome2, color = Serie2Color)
+            )
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+        Text("Positivo", fontWeight = FontWeight.Bold)
+        TemporalBarSection(
+            meses = meses,
+            opinioes1 = opinioes1,
+            opinioes2 = opinioes2,
+            tipo = TemporalOpiniaoTipo.POSITIVA
+        )
+
+        Spacer(modifier = Modifier.height(20.dp))
+        Text("Negativo", fontWeight = FontWeight.Bold)
+        TemporalBarSection(
+            meses = meses,
+            opinioes1 = opinioes1,
+            opinioes2 = opinioes2,
+            tipo = TemporalOpiniaoTipo.NEGATIVA
+        )
+    }
+}
+
+private enum class TemporalOpiniaoTipo { POSITIVA, NEGATIVA }
+
+@Composable
+private fun TemporalBarSection(
+    meses: List<String>,
+    opinioes1: List<OpiniaoTemporalDto>,
+    opinioes2: List<OpiniaoTemporalDto>,
+    tipo: TemporalOpiniaoTipo,
+    graficoAltura: Dp = 160.dp
+) {
+    val maxValor = remember(meses, opinioes1, opinioes2, tipo) {
+        val valores = buildList {
+            opinioes1.forEach {
+                add(if (tipo == TemporalOpiniaoTipo.POSITIVA) it.positivas else it.negativas)
+            }
+            opinioes2.forEach {
+                add(if (tipo == TemporalOpiniaoTipo.POSITIVA) it.positivas else it.negativas)
+            }
+        }
+        valores.maxOrNull()?.coerceAtLeast(1) ?: 1
+    }
+
+    val scrollState = rememberScrollState()
+
+    val maxBarHeight = (graficoAltura - 32.dp).coerceAtLeast(0.dp)
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(scrollState)
+            .padding(vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(20.dp)
+    ) {
+        meses.forEach { mes ->
+            val v1 = opinioes1.find { it.ano_mes == mes }
+                ?.let { if (tipo == TemporalOpiniaoTipo.POSITIVA) it.positivas else it.negativas }
+                ?: 0
+            val v2 = opinioes2.find { it.ano_mes == mes }
+                ?.let { if (tipo == TemporalOpiniaoTipo.POSITIVA) it.positivas else it.negativas }
+                ?: 0
+
+            val alturaBarra1 = if (maxValor == 0) 0.dp else maxBarHeight * (v1.toFloat() / maxValor.toFloat())
+            val alturaBarra2 = if (maxValor == 0) 0.dp else maxBarHeight * (v2.toFloat() / maxValor.toFloat())
+
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Bottom,
+                modifier = Modifier.height(graficoAltura)
+            ) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.Bottom
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .width(22.dp)
+                            .height(alturaBarra1)
+                            .background(Serie1Color.copy(alpha = 0.75f))
+                    )
+                    Box(
+                        modifier = Modifier
+                            .width(22.dp)
+                            .height(alturaBarra2)
+                            .background(Serie2Color.copy(alpha = 0.75f))
+                    )
+                }
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = formatarMesLabel(mes),
+                    fontSize = 11.sp
+                )
+            }
+        }
+    }
+}
 /* =================== Util =================== */
 
 /** Normaliza valor de [-1, 1] para [0, 1] só para desenho. */

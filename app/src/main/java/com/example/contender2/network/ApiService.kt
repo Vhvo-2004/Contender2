@@ -81,6 +81,12 @@ data class MediaMensalDto(
     val media_polaridade: Float,
     val total_opinioes: Int
 )
+
+data class OpiniaoTemporalDto(
+    val ano_mes: String,
+    val positivas: Int,
+    val negativas: Int
+)
 /* ===================== API ===================== */
 
 interface ApiService {
@@ -134,6 +140,11 @@ interface ApiService {
     suspend fun getMediaMensal(
         @Path("restaurante_id") id: Int
     ): List<MediaMensalDto>
+
+    @GET("graficos/opinioes-tempo/{restaurante_id}")
+    suspend fun getGraficoTemporal(
+        @Path("restaurante_id") id: Int
+    ): List<OpiniaoTemporalDto>
 
 
 
