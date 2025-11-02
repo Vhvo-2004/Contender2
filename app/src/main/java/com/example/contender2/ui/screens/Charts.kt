@@ -35,20 +35,18 @@ import androidx.navigation.NavHostController
 import com.example.contender2.network.AspectoComparadoDto
 import com.example.contender2.network.ChartPolaridadeCategoriaDto
 import com.example.contender2.network.MediaMensalDto
-import com.example.contender2.network.OpiniaoTemporalDto
 import com.example.contender2.network.RetrofitInstance
 import java.net.URLDecoder
 import kotlin.math.cos
-import kotlin.math.floor
-import kotlin.math.log10
-import kotlin.math.pow
 import kotlin.math.sin
 
 /* =================== Cores =================== */
 
 private val Serie1Color = Color(0xFF6BA9FF) // azul
 private val Serie2Color = Color(0xFFFF80A6) // rosa
-internal val ChartTextColor = Color(0xFF2C1A57)
+
+@Composable
+internal fun chartTextColor(): Color = MaterialTheme.colorScheme.onSurface
 
 private val AspectPalette = listOf(
     Color(0xFF6BA9FF), // azul
@@ -73,7 +71,7 @@ fun Charts(
 ) {
     var aspecto by remember { mutableStateOf("") }
     var graficoSelecionado by remember { mutableStateOf("Histograma") }
-    val opcoesDeGrafico = listOf("Histograma", "Temporal", "Pizza", "Radar")
+    val opcoesDeGrafico = listOf("Histograma", "Pizza", "Radar")
 
     var comparacoes by remember { mutableStateOf<List<AspectoComparadoDto>>(emptyList()) }
     var erro by remember { mutableStateOf<String?>(null) }
@@ -82,9 +80,6 @@ fun Charts(
     var polaridadesCategoriaRest2 by remember { mutableStateOf<List<ChartPolaridadeCategoriaDto>>(emptyList()) }
     var mediasMensaisRest1 by remember { mutableStateOf<List<MediaMensalDto>>(emptyList()) }
     var mediasMensaisRest2 by remember { mutableStateOf<List<MediaMensalDto>>(emptyList()) }
-    var opinioesTempoRest1 by remember { mutableStateOf<List<OpiniaoTemporalDto>>(emptyList()) }
-    var opinioesTempoRest2 by remember { mutableStateOf<List<OpiniaoTemporalDto>>(emptyList()) }
-
     // Decodifica os nomes
     val nome1Dec = remember(nome1) { URLDecoder.decode(nome1, "UTF-8") }
     val nome2Dec = remember(nome2) { URLDecoder.decode(nome2, "UTF-8") }
@@ -97,8 +92,6 @@ fun Charts(
             polaridadesCategoriaRest2 = RetrofitInstance.api.chartPolaridadeCategoria(id2)
             mediasMensaisRest1 = RetrofitInstance.api.getMediaMensal(id1)
             mediasMensaisRest2 = RetrofitInstance.api.getMediaMensal(id2)
-            opinioesTempoRest1 = RetrofitInstance.api.getGraficoTemporal(id1)
-            opinioesTempoRest2 = RetrofitInstance.api.getGraficoTemporal(id2)
         } catch (e: Exception) {
             e.printStackTrace()
             erro = e.message ?: "Erro ao carregar dados"
@@ -124,7 +117,7 @@ fun Charts(
                 "Comparação",
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
-                color = ChartTextColor
+                color = chartTextColor()
             )
         }
 
@@ -145,14 +138,14 @@ fun Charts(
                         containerColor = if (graficoSelecionado == opcao) Color(0xFFEBDEF0) else Color.Transparent
                     )
                 ) {
-                    Text(opcao, color = ChartTextColor)
+                    Text(opcao, color = chartTextColor())
                 }
             }
         }
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        Text("Aspecto", fontWeight = FontWeight.Bold, color = ChartTextColor)
+        Text("Aspecto", fontWeight = FontWeight.Bold, color = chartTextColor())
         Row(verticalAlignment = Alignment.CenterVertically) {
             OutlinedTextField(
                 value = aspecto,
@@ -164,33 +157,17 @@ fun Charts(
                         Icon(Icons.Default.Close, contentDescription = "Limpar")
                     }
                 },
-                placeholder = { Text("comida", color = ChartTextColor.copy(alpha = 0.6f)) }
+                placeholder = { Text("comida", color = chartTextColor().copy(alpha = 0.6f)) }
             )
             Spacer(modifier = Modifier.width(8.dp))
             Button(onClick = { /* filtro já é reativo */ }) {
-                Text("Pesquisar", color = ChartTextColor)
+                Text("Pesquisar", color = chartTextColor())
             }
         }
 
         if (erro != null) {
             Text("Erro: $erro", color = Color.Red)
         } else when (graficoSelecionado) {
-            "Temporal" -> {
-                Spacer(Modifier.height(12.dp))
-
-                val temTemporal = opinioesTempoRest1.isNotEmpty() || opinioesTempoRest2.isNotEmpty()
-
-                if (temTemporal) {
-                    TemporalComparativoChart(
-                        nome1 = nome1Dec,
-                        nome2 = nome2Dec,
-                        opinioes1 = opinioesTempoRest1,
-                        opinioes2 = opinioesTempoRest2
-                    )
-                } else {
-                    Text("Nenhum dado temporal para exibir.", color = ChartTextColor)
-                }
-            }
             "Pizza" -> {
                 Spacer(Modifier.height(12.dp))
 
@@ -198,7 +175,7 @@ fun Charts(
                 val categoriasRest2 = polaridadesCategoriaRest2.filter { it.qt_opinioes > 0 }
 
                 if (categoriasRest1.isEmpty() && categoriasRest2.isEmpty()) {
-                    Text("Nenhum dado de categorias para exibir.", color = ChartTextColor)
+                    Text("Nenhum dado de categorias para exibir.", color = chartTextColor())
                 } else {
                     val scrollState = rememberScrollState()
                     Column(
@@ -226,7 +203,7 @@ fun Charts(
             "Radar" -> {
                 Spacer(Modifier.height(12.dp))
                 if (dadosFiltrados.isEmpty()) {
-                    Text("Nenhum dado para exibir com o filtro atual.", color = ChartTextColor)
+                    Text("Nenhum dado para exibir com o filtro atual.", color = chartTextColor())
                 } else {
                     RadarChartTodosAspectos(dadosFiltrados, nome1Dec, nome2Dec)
                 }
@@ -242,7 +219,7 @@ fun Charts(
                     val temComparacoes = dadosFiltrados.isNotEmpty()
 
                     if (!temMediaMensal && !temComparacoes) {
-                        Text("Nenhum dado para exibir com o filtro atual.", color = ChartTextColor)
+                        Text("Nenhum dado para exibir com o filtro atual.", color = chartTextColor())
                     } else {
                         if (temMediaMensal) {
                             MonthlyMediaSection(
@@ -266,7 +243,7 @@ fun Charts(
                                     Text(
                                         "Aspecto: ${dado.aspecto}",
                                         fontWeight = FontWeight.Bold,
-                                        color = ChartTextColor
+                                        color = chartTextColor()
                                     )
                                     Spacer(modifier = Modifier.height(8.dp))
 
@@ -287,238 +264,6 @@ fun Charts(
     }
 }
 
-/* =================== Gráfico Temporal Comparativo =================== */
-
-@Composable
-private fun TemporalComparativoChart(
-    nome1: String,
-    nome2: String,
-    opinioes1: List<OpiniaoTemporalDto>,
-    opinioes2: List<OpiniaoTemporalDto>
-) {
-    val meses = remember(opinioes1, opinioes2) {
-        (opinioes1.map { it.ano_mes } + opinioes2.map { it.ano_mes })
-            .distinct()
-            .sorted()
-    }
-
-    if (meses.isEmpty()) return
-
-    val opinioesMapa1 = remember(opinioes1) { opinioes1.associateBy { it.ano_mes } }
-    val opinioesMapa2 = remember(opinioes2) { opinioes2.associateBy { it.ano_mes } }
-
-    val totaisPorMes = remember(meses, opinioesMapa1, opinioesMapa2) {
-        meses.associateWith { mes ->
-            val total1 = opinioesMapa1[mes]?.let { it.positivas + it.negativas } ?: 0
-            val total2 = opinioesMapa2[mes]?.let { it.positivas + it.negativas } ?: 0
-            total1 to total2
-        }
-    }
-
-    val maxValor = remember(totaisPorMes) {
-        totaisPorMes.values.maxOfOrNull { maxOf(it.first, it.second) }?.coerceAtLeast(1) ?: 1
-    }
-
-    val (limiteSuperior, tickValues) = remember(maxValor) {
-        calcularTicksParaGrafico(maxValor)
-    }
-
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 12.dp)
-    ) {
-        Text(
-            text = "Opiniões ao longo do tempo",
-            fontWeight = FontWeight.SemiBold,
-            fontSize = 18.sp,
-            color = ChartTextColor
-        )
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        LegendComparacao(
-            itens = listOf(
-                LegendItemData(label = nome1, color = Serie1Color),
-                LegendItemData(label = nome2, color = Serie2Color)
-            )
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        TemporalHistogram(
-            meses = meses,
-            totais = totaisPorMes,
-            limiteSuperior = limiteSuperior,
-            tickValues = tickValues
-        )
-    }
-}
-
-@Composable
-private fun TemporalHistogram(
-    meses: List<String>,
-    totais: Map<String, Pair<Int, Int>>,
-    limiteSuperior: Float,
-    tickValues: List<Float>,
-    graficoAltura: Dp = 200.dp
-) {
-    val scrollState = rememberScrollState()
-    val density = LocalDensity.current
-
-    val leftPadding = 48.dp
-    val rightPadding = 24.dp
-    val topPadding = 16.dp
-    val bottomPadding = 48.dp
-    val groupWidth = 52.dp
-    val groupSpacing = 16.dp
-    val barSpacing = 8.dp
-
-    val totalGroupsWidth = groupWidth * meses.size
-    val totalSpacing = groupSpacing * (meses.size - 1).coerceAtLeast(0)
-    val chartWidth = (leftPadding + rightPadding + totalGroupsWidth + totalSpacing)
-        .coerceAtLeast(320.dp)
-
-    val axisColor = Color(0xFFC8A8F0)
-    val gridColor = Color(0xFFEADCF8)
-    val axisStrokeWidth = with(density) { 1.5.dp.toPx() }
-    val gridStrokeWidth = with(density) { 1.dp.toPx() }
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .horizontalScroll(scrollState)
-    ) {
-        Canvas(
-            modifier = Modifier
-                .height(graficoAltura + topPadding + bottomPadding)
-                .width(chartWidth)
-        ) {
-            val leftPx = leftPadding.toPx()
-            val rightPx = size.width - rightPadding.toPx()
-            val topPx = topPadding.toPx()
-            val bottomPx = size.height - bottomPadding.toPx()
-            val chartHeightPx = bottomPx - topPx
-            val groupWidthPx = groupWidth.toPx()
-            val groupSpacingPx = groupSpacing.toPx()
-            val barSpacingPx = barSpacing.toPx()
-            val barWidthPx = (groupWidthPx - barSpacingPx) / 2f
-
-            val labelPaint = android.graphics.Paint().apply {
-                color = android.graphics.Color.parseColor("#5A4B81")
-                textSize = with(density) { 13.sp.toPx() }
-                textAlign = android.graphics.Paint.Align.CENTER
-                isAntiAlias = true
-            }
-
-            val axisLabelPaint = android.graphics.Paint().apply {
-                color = android.graphics.Color.parseColor("#7A6AA6")
-                textSize = with(density) { 12.sp.toPx() }
-                isAntiAlias = true
-            }
-
-            tickValues.forEach { tick ->
-                val proporcao = if (limiteSuperior == 0f) 0f else (tick / limiteSuperior).coerceIn(0f, 1f)
-                val y = bottomPx - proporcao * chartHeightPx
-                drawLine(
-                    color = gridColor,
-                    start = Offset(leftPx, y),
-                    end = Offset(rightPx, y),
-                    strokeWidth = gridStrokeWidth
-                )
-
-                val tickLabel = if (tick % 1f == 0f) tick.toInt().toString() else "%.1f".format(tick)
-                drawContext.canvas.nativeCanvas.drawText(
-                    tickLabel,
-                    leftPx - with(density) { 12.dp.toPx() },
-                    y + with(density) { 4.dp.toPx() },
-                    axisLabelPaint
-                )
-            }
-
-            drawLine(
-                color = axisColor,
-                start = Offset(leftPx, topPx),
-                end = Offset(leftPx, bottomPx),
-                strokeWidth = axisStrokeWidth
-            )
-            drawLine(
-                color = axisColor,
-                start = Offset(leftPx, bottomPx),
-                end = Offset(rightPx, bottomPx),
-                strokeWidth = axisStrokeWidth
-            )
-
-            drawContext.canvas.nativeCanvas.drawText(
-                "y",
-                leftPx - with(density) { 20.dp.toPx() },
-                topPx - with(density) { 4.dp.toPx() },
-                axisLabelPaint
-            )
-
-            val baseYLabel = bottomPx + with(density) { 20.dp.toPx() }
-
-            meses.forEachIndexed { index, mes ->
-                val (valor1, valor2) = totais[mes] ?: (0 to 0)
-                val proporcao1 = if (limiteSuperior == 0f) 0f else (valor1 / limiteSuperior)
-                val proporcao2 = if (limiteSuperior == 0f) 0f else (valor2 / limiteSuperior)
-
-                val groupStart = leftPx + index * (groupWidthPx + groupSpacingPx)
-                val bar1Start = groupStart + barSpacingPx / 2f
-                val bar2Start = bar1Start + barWidthPx + barSpacingPx / 2f
-
-                val bar1Height = proporcao1.coerceIn(0f, 1f) * chartHeightPx
-                val bar2Height = proporcao2.coerceIn(0f, 1f) * chartHeightPx
-
-                drawRect(
-                    color = Serie1Color.copy(alpha = 0.85f),
-                    topLeft = Offset(bar1Start, bottomPx - bar1Height),
-                    size = Size(barWidthPx, bar1Height)
-                )
-
-                drawRect(
-                    color = Serie2Color.copy(alpha = 0.85f),
-                    topLeft = Offset(bar2Start, bottomPx - bar2Height),
-                    size = Size(barWidthPx, bar2Height)
-                )
-
-                val labelX = groupStart + groupWidthPx / 2f
-                drawContext.canvas.nativeCanvas.drawText(
-                    formatarMesLabel(mes),
-                    labelX,
-                    baseYLabel,
-                    labelPaint
-                )
-            }
-        }
-    }
-}
-
-private fun calcularTicksParaGrafico(maxValor: Int, tickCount: Int = 5): Pair<Float, List<Float>> {
-    val valorMaximo = maxValor.coerceAtLeast(1)
-    val passo = niceStep(valorMaximo.toFloat() / tickCount)
-    val limiteSuperior = passo * tickCount
-    val ticks = buildList {
-        for (i in 0..tickCount) {
-            add(i * passo)
-        }
-    }
-    return limiteSuperior to ticks
-}
-
-private fun niceStep(valor: Float): Float {
-    val seguro = valor.coerceAtLeast(1f)
-    val expoente = floor(log10(seguro.toDouble())).toInt()
-    val base = 10.0.pow(expoente.toDouble()).toFloat()
-    val fracao = seguro / base
-    val niceFracao = when {
-        fracao <= 1f -> 1f
-        fracao <= 2f -> 2f
-        fracao <= 5f -> 5f
-        else -> 10f
-    }
-    return niceFracao * base
-}
 /* =================== Util =================== */
 
 /** Normaliza valor de [-1, 1] para [0, 1] só para desenho. */
@@ -555,7 +300,7 @@ private fun MonthlyMediaSection(
                 text = "Média de polaridade mensal",
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 18.sp,
-                color = ChartTextColor
+                color = chartTextColor()
             )
 
             Spacer(Modifier.height(12.dp))
@@ -569,7 +314,7 @@ private fun MonthlyMediaSection(
 
             Spacer(Modifier.height(16.dp))
 
-            Text("Positivo", fontWeight = FontWeight.Bold, color = ChartTextColor)
+            Text("Positivo", fontWeight = FontWeight.Bold, color = chartTextColor())
             Spacer(Modifier.height(8.dp))
             MonthlyBarChart(
                 mesesOrdenados = mesesOrdenados,
@@ -737,7 +482,7 @@ fun BarChartComparativo(original1: Float, original2: Float, nome1: String, nome2
         Text(
             "$nome1: ${"%.3f".format(original1)}",
             fontSize = 12.sp,
-            color = ChartTextColor
+            color = chartTextColor()
         )
         Box(
             modifier = Modifier
@@ -749,7 +494,7 @@ fun BarChartComparativo(original1: Float, original2: Float, nome1: String, nome2
         Text(
             "$nome2: ${"%.3f".format(original2)}",
             fontSize = 12.sp,
-            color = ChartTextColor
+            color = chartTextColor()
         )
         Box(
             modifier = Modifier
@@ -786,7 +531,7 @@ private fun CategoriaPizzaSection(
             text = titulo,
             fontWeight = FontWeight.SemiBold,
             fontSize = 18.sp,
-            color = ChartTextColor
+            color = chartTextColor()
         )
         Spacer(Modifier.height(12.dp))
 
@@ -807,7 +552,7 @@ private fun CategoriaPizzaSection(
                         .padding(vertical = 32.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("Sem dados suficientes", color = ChartTextColor)
+                    Text("Sem dados suficientes", color = chartTextColor())
                 }
             } else {
                 val total = ordenado.sumOf { it.qt_opinioes }
@@ -875,7 +620,7 @@ private fun CategoriaPieChart(
             modifier = modifier,
             contentAlignment = Alignment.Center
         ) {
-            Text("Sem dados", color = ChartTextColor)
+            Text("Sem dados", color = chartTextColor())
         }
         return
     }
@@ -952,7 +697,7 @@ private fun CategoriaLegendItem(
                 style = MaterialTheme.typography.bodyMedium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                color = ChartTextColor
+                color = chartTextColor()
             )
         }
         Text(
@@ -975,11 +720,11 @@ fun RadarChartTodosAspectos(
     val dados = aspectos.sortedBy { it.aspecto.lowercase() }.take(MAX_AXES)
 
     if (dados.isEmpty()) {
-        Text("Sem dados para o gráfico de radar.", color = ChartTextColor)
+        Text("Sem dados para o gráfico de radar.", color = chartTextColor())
         return
     }
     if (dados.size < 3) {
-        Text("O gráfico de radar precisa de pelo menos 3 categorias.", color = ChartTextColor)
+        Text("O gráfico de radar precisa de pelo menos 3 categorias.", color = chartTextColor())
         return
     }
 
@@ -1096,7 +841,7 @@ private fun LegendItem(
             style = MaterialTheme.typography.bodyMedium,
             maxLines = 2,
             overflow = TextOverflow.Clip,
-            color = ChartTextColor
+            color = chartTextColor()
         )
     }
 }
