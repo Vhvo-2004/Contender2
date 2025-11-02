@@ -72,7 +72,7 @@ fun Charts(
 ) {
     var aspecto by remember { mutableStateOf("") }
     var graficoSelecionado by remember { mutableStateOf("Histograma") }
-    val opcoesDeGrafico = listOf("Histograma", "Pizza", "Radar")
+    val opcoesDeGrafico = listOf("Histograma", "Temporal", "Pizza", "Radar")
 
     var comparacoes by remember { mutableStateOf<List<AspectoComparadoDto>>(emptyList()) }
     var erro by remember { mutableStateOf<String?>(null) }
@@ -167,6 +167,22 @@ fun Charts(
         if (erro != null) {
             Text("Erro: $erro", color = Color.Red)
         } else when (graficoSelecionado) {
+            "Temporal" -> {
+                Spacer(Modifier.height(12.dp))
+
+                val temTemporal = opinioesTempoRest1.isNotEmpty() || opinioesTempoRest2.isNotEmpty()
+
+                if (temTemporal) {
+                    TemporalComparativoChart(
+                        nome1 = nome1Dec,
+                        nome2 = nome2Dec,
+                        opinioes1 = opinioesTempoRest1,
+                        opinioes2 = opinioesTempoRest2
+                    )
+                } else {
+                    Text("Nenhum dado temporal para exibir.")
+                }
+            }
             "Pizza" -> {
                 Spacer(Modifier.height(12.dp))
 
@@ -214,25 +230,12 @@ fun Charts(
                         .fillMaxWidth()
                         .verticalScroll(rememberScrollState())
                 ) {
-                    val temTemporal = opinioesTempoRest1.isNotEmpty() || opinioesTempoRest2.isNotEmpty()
                     val temMediaMensal = mediasMensaisRest1.isNotEmpty() || mediasMensaisRest2.isNotEmpty()
                     val temComparacoes = dadosFiltrados.isNotEmpty()
 
-                    if (!temTemporal && !temMediaMensal && !temComparacoes) {
+                    if (!temMediaMensal && !temComparacoes) {
                         Text("Nenhum dado para exibir com o filtro atual.")
                     } else {
-                        if (temTemporal) {
-                            TemporalComparativoChart(
-                                nome1 = nome1Dec,
-                                nome2 = nome2Dec,
-                                opinioes1 = opinioesTempoRest1,
-                                opinioes2 = opinioesTempoRest2
-                            )
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Divider()
-                            Spacer(modifier = Modifier.height(16.dp))
-                        }
-
                         if (temMediaMensal) {
                             MonthlyMediaSection(
                                 nomeRestaurante1 = nome1Dec,
