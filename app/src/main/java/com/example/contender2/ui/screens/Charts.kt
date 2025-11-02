@@ -39,6 +39,9 @@ import com.example.contender2.network.OpiniaoTemporalDto
 import com.example.contender2.network.RetrofitInstance
 import java.net.URLDecoder
 import kotlin.math.cos
+import kotlin.math.floor
+import kotlin.math.log10
+import kotlin.math.pow
 import kotlin.math.sin
 
 /* =================== Cores =================== */
@@ -336,70 +339,190 @@ private fun TemporalBarSection(
     tipo: TemporalOpiniaoTipo,
     graficoAltura: Dp = 160.dp
 ) {
+    if (meses.isEmpty()) return
+
+    val opinioesMapa1 = remember(opinioes1) { opinioes1.associateBy { it.ano_mes } }
+    val opinioesMapa2 = remember(opinioes2) { opinioes2.associateBy { it.ano_mes } }
+
     val maxValor = remember(meses, opinioes1, opinioes2, tipo) {
-        val valores = buildList {
-            opinioes1.forEach {
-                add(if (tipo == TemporalOpiniaoTipo.POSITIVA) it.positivas else it.negativas)
-            }
-            opinioes2.forEach {
-                add(if (tipo == TemporalOpiniaoTipo.POSITIVA) it.positivas else it.negativas)
-            }
-        }
-        valores.maxOrNull()?.coerceAtLeast(1) ?: 1
+        meses.maxOf { mes ->
+            val v1 = opinioesMapa1[mes]?.let {
+                if (tipo == TemporalOpiniaoTipo.POSITIVA) it.positivas else it.negativas
+            } ?: 0
+            val v2 = opinioesMapa2[mes]?.let {
+                if (tipo == TemporalOpiniaoTipo.POSITIVA) it.positivas else it.negativas
+            } ?: 0
+            maxOf(v1, v2)
+        }.coerceAtLeast(1)
+    }
+
+    val (limiteSuperior, tickValues) = remember(maxValor) {
+        calcularTicksParaGrafico(maxValor)
     }
 
     val scrollState = rememberScrollState()
+    val density = LocalDensity.current
 
-    val maxBarHeight = (graficoAltura - 32.dp).coerceAtLeast(0.dp)
+    val leftPadding = 48.dp
+    val rightPadding = 24.dp
+    val topPadding = 16.dp
+    val bottomPadding = 48.dp
+    val groupWidth = 52.dp
+    val groupSpacing = 16.dp
+    val barSpacing = 8.dp
 
-    Row(
+    val totalGroupsWidth = groupWidth * meses.size
+    val totalSpacing = groupSpacing * (meses.size - 1).coerceAtLeast(0)
+    val chartWidth = (leftPadding + rightPadding + totalGroupsWidth + totalSpacing)
+        .coerceAtLeast(320.dp)
+
+    val axisColor = Color(0xFFC8A8F0)
+    val gridColor = Color(0xFFEADCF8)
+    val axisStrokeWidth = with(density) { 1.5.dp.toPx() }
+    val gridStrokeWidth = with(density) { 1.dp.toPx() }
+
+    Box(
         modifier = Modifier
             .fillMaxWidth()
             .horizontalScroll(scrollState)
-            .padding(vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(20.dp)
     ) {
-        meses.forEach { mes ->
-            val v1 = opinioes1.find { it.ano_mes == mes }
-                ?.let { if (tipo == TemporalOpiniaoTipo.POSITIVA) it.positivas else it.negativas }
-                ?: 0
-            val v2 = opinioes2.find { it.ano_mes == mes }
-                ?.let { if (tipo == TemporalOpiniaoTipo.POSITIVA) it.positivas else it.negativas }
-                ?: 0
+        Canvas(
+            modifier = Modifier
+                .height(graficoAltura + topPadding + bottomPadding)
+                .width(chartWidth)
+        ) {
+            val leftPx = leftPadding.toPx()
+            val rightPx = size.width - rightPadding.toPx()
+            val topPx = topPadding.toPx()
+            val bottomPx = size.height - bottomPadding.toPx()
+            val chartHeightPx = bottomPx - topPx
+            val groupWidthPx = groupWidth.toPx()
+            val groupSpacingPx = groupSpacing.toPx()
+            val barSpacingPx = barSpacing.toPx()
+            val barWidthPx = (groupWidthPx - barSpacingPx) / 2f
 
-            val alturaBarra1 = if (maxValor == 0) 0.dp else maxBarHeight * (v1.toFloat() / maxValor.toFloat())
-            val alturaBarra2 = if (maxValor == 0) 0.dp else maxBarHeight * (v2.toFloat() / maxValor.toFloat())
+            val labelPaint = android.graphics.Paint().apply {
+                color = android.graphics.Color.parseColor("#5A4B81")
+                textSize = with(density) { 13.sp.toPx() }
+                textAlign = android.graphics.Paint.Align.CENTER
+                isAntiAlias = true
+            }
 
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Bottom,
-                modifier = Modifier.height(graficoAltura)
-            ) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.Bottom
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .width(22.dp)
-                            .height(alturaBarra1)
-                            .background(Serie1Color.copy(alpha = 0.75f))
-                    )
-                    Box(
-                        modifier = Modifier
-                            .width(22.dp)
-                            .height(alturaBarra2)
-                            .background(Serie2Color.copy(alpha = 0.75f))
-                    )
-                }
-                Spacer(modifier = Modifier.height(6.dp))
-                Text(
-                    text = formatarMesLabel(mes),
-                    fontSize = 11.sp
+            val axisLabelPaint = android.graphics.Paint().apply {
+                color = android.graphics.Color.parseColor("#7A6AA6")
+                textSize = with(density) { 12.sp.toPx() }
+                isAntiAlias = true
+            }
+
+            // Grid horizontal e labels do eixo Y
+            tickValues.forEach { tick ->
+                val proporcao = (tick / limiteSuperior).coerceIn(0f, 1f)
+                val y = bottomPx - proporcao * chartHeightPx
+                drawLine(
+                    color = gridColor,
+                    start = Offset(leftPx, y),
+                    end = Offset(rightPx, y),
+                    strokeWidth = gridStrokeWidth
+                )
+
+                val tickLabel = if (tick % 1f == 0f) tick.toInt().toString() else "%.1f".format(tick)
+                drawContext.canvas.nativeCanvas.drawText(
+                    tickLabel,
+                    leftPx - with(density) { 12.dp.toPx() },
+                    y + with(density) { 4.dp.toPx() },
+                    axisLabelPaint
+                )
+            }
+
+            // Eixos
+            drawLine(
+                color = axisColor,
+                start = Offset(leftPx, topPx),
+                end = Offset(leftPx, bottomPx),
+                strokeWidth = axisStrokeWidth
+            )
+            drawLine(
+                color = axisColor,
+                start = Offset(leftPx, bottomPx),
+                end = Offset(rightPx, bottomPx),
+                strokeWidth = axisStrokeWidth
+            )
+
+            drawContext.canvas.nativeCanvas.drawText(
+                "y",
+                leftPx - with(density) { 20.dp.toPx() },
+                topPx - with(density) { 4.dp.toPx() },
+                axisLabelPaint
+            )
+
+            val baseYLabel = bottomPx + with(density) { 20.dp.toPx() }
+
+            meses.forEachIndexed { index, mes ->
+                val valor1 = opinioesMapa1[mes]?.let {
+                    if (tipo == TemporalOpiniaoTipo.POSITIVA) it.positivas else it.negativas
+                }?.coerceAtLeast(0) ?: 0
+                val valor2 = opinioesMapa2[mes]?.let {
+                    if (tipo == TemporalOpiniaoTipo.POSITIVA) it.positivas else it.negativas
+                }?.coerceAtLeast(0) ?: 0
+
+                val proporcao1 = (valor1.toFloat() / limiteSuperior).coerceIn(0f, 1f)
+                val proporcao2 = (valor2.toFloat() / limiteSuperior).coerceIn(0f, 1f)
+
+                val groupStart = leftPx + index * (groupWidthPx + groupSpacingPx)
+                val bar1Start = groupStart + barSpacingPx / 2f
+                val bar2Start = bar1Start + barWidthPx + barSpacingPx / 2f
+
+                val bar1Height = proporcao1 * chartHeightPx
+                val bar2Height = proporcao2 * chartHeightPx
+
+                drawRect(
+                    color = Serie1Color.copy(alpha = 0.85f),
+                    topLeft = Offset(bar1Start, bottomPx - bar1Height),
+                    size = Size(barWidthPx, bar1Height)
+                )
+
+                drawRect(
+                    color = Serie2Color.copy(alpha = 0.85f),
+                    topLeft = Offset(bar2Start, bottomPx - bar2Height),
+                    size = Size(barWidthPx, bar2Height)
+                )
+
+                val labelX = groupStart + groupWidthPx / 2f
+                drawContext.canvas.nativeCanvas.drawText(
+                    formatarMesLabel(mes),
+                    labelX,
+                    baseYLabel,
+                    labelPaint
                 )
             }
         }
     }
+}
+
+private fun calcularTicksParaGrafico(maxValor: Int, tickCount: Int = 5): Pair<Float, List<Float>> {
+    val valorMaximo = maxValor.coerceAtLeast(1)
+    val passo = niceStep(valorMaximo.toFloat() / tickCount)
+    val limiteSuperior = passo * tickCount
+    val ticks = buildList {
+        for (i in 0..tickCount) {
+            add(i * passo)
+        }
+    }
+    return limiteSuperior to ticks
+}
+
+private fun niceStep(valor: Float): Float {
+    val seguro = valor.coerceAtLeast(1f)
+    val expoente = floor(log10(seguro.toDouble())).toInt()
+    val base = 10.0.pow(expoente.toDouble()).toFloat()
+    val fracao = seguro / base
+    val niceFracao = when {
+        fracao <= 1f -> 1f
+        fracao <= 2f -> 2f
+        fracao <= 5f -> 5f
+        else -> 10f
+    }
+    return niceFracao * base
 }
 /* =================== Util =================== */
 
