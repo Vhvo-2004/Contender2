@@ -141,7 +141,7 @@ interface ApiService {
         @Path("restaurante_id") id: Int
     ): List<MediaMensalDto>
 
-    @GET("graficos/opinioes-tempo/{restaurante_id}")
+    @GET("graficos/temporal/{restaurante_id}")
     suspend fun getGraficoTemporal(
         @Path("restaurante_id") id: Int
     ): List<OpiniaoTemporalDto>
