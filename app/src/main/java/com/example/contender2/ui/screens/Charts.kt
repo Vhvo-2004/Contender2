@@ -289,6 +289,25 @@ private fun TemporalComparativoChart(
 
     if (meses.isEmpty()) return
 
+    val opinioesMapa1 = remember(opinioes1) { opinioes1.associateBy { it.ano_mes } }
+    val opinioesMapa2 = remember(opinioes2) { opinioes2.associateBy { it.ano_mes } }
+
+    val totaisPorMes = remember(meses, opinioesMapa1, opinioesMapa2) {
+        meses.associateWith { mes ->
+            val total1 = opinioesMapa1[mes]?.let { it.positivas + it.negativas } ?: 0
+            val total2 = opinioesMapa2[mes]?.let { it.positivas + it.negativas } ?: 0
+            total1 to total2
+        }
+    }
+
+    val maxValor = remember(totaisPorMes) {
+        totaisPorMes.values.maxOfOrNull { maxOf(it.first, it.second) }?.coerceAtLeast(1) ?: 1
+    }
+
+    val (limiteSuperior, tickValues) = remember(maxValor) {
+        calcularTicksParaGrafico(maxValor)
+    }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -310,56 +329,24 @@ private fun TemporalComparativoChart(
         )
 
         Spacer(modifier = Modifier.height(16.dp))
-        Text("Positivo", fontWeight = FontWeight.Bold)
-        TemporalBarSection(
-            meses = meses,
-            opinioes1 = opinioes1,
-            opinioes2 = opinioes2,
-            tipo = TemporalOpiniaoTipo.POSITIVA
-        )
 
-        Spacer(modifier = Modifier.height(20.dp))
-        Text("Negativo", fontWeight = FontWeight.Bold)
-        TemporalBarSection(
+        TemporalHistogram(
             meses = meses,
-            opinioes1 = opinioes1,
-            opinioes2 = opinioes2,
-            tipo = TemporalOpiniaoTipo.NEGATIVA
+            totais = totaisPorMes,
+            limiteSuperior = limiteSuperior,
+            tickValues = tickValues
         )
     }
 }
 
-private enum class TemporalOpiniaoTipo { POSITIVA, NEGATIVA }
-
 @Composable
-private fun TemporalBarSection(
+private fun TemporalHistogram(
     meses: List<String>,
-    opinioes1: List<OpiniaoTemporalDto>,
-    opinioes2: List<OpiniaoTemporalDto>,
-    tipo: TemporalOpiniaoTipo,
-    graficoAltura: Dp = 160.dp
+    totais: Map<String, Pair<Int, Int>>,
+    limiteSuperior: Float,
+    tickValues: List<Float>,
+    graficoAltura: Dp = 200.dp
 ) {
-    if (meses.isEmpty()) return
-
-    val opinioesMapa1 = remember(opinioes1) { opinioes1.associateBy { it.ano_mes } }
-    val opinioesMapa2 = remember(opinioes2) { opinioes2.associateBy { it.ano_mes } }
-
-    val maxValor = remember(meses, opinioes1, opinioes2, tipo) {
-        meses.maxOf { mes ->
-            val v1 = opinioesMapa1[mes]?.let {
-                if (tipo == TemporalOpiniaoTipo.POSITIVA) it.positivas else it.negativas
-            } ?: 0
-            val v2 = opinioesMapa2[mes]?.let {
-                if (tipo == TemporalOpiniaoTipo.POSITIVA) it.positivas else it.negativas
-            } ?: 0
-            maxOf(v1, v2)
-        }.coerceAtLeast(1)
-    }
-
-    val (limiteSuperior, tickValues) = remember(maxValor) {
-        calcularTicksParaGrafico(maxValor)
-    }
-
     val scrollState = rememberScrollState()
     val density = LocalDensity.current
 
@@ -414,9 +401,8 @@ private fun TemporalBarSection(
                 isAntiAlias = true
             }
 
-            // Grid horizontal e labels do eixo Y
             tickValues.forEach { tick ->
-                val proporcao = (tick / limiteSuperior).coerceIn(0f, 1f)
+                val proporcao = if (limiteSuperior == 0f) 0f else (tick / limiteSuperior).coerceIn(0f, 1f)
                 val y = bottomPx - proporcao * chartHeightPx
                 drawLine(
                     color = gridColor,
@@ -434,7 +420,6 @@ private fun TemporalBarSection(
                 )
             }
 
-            // Eixos
             drawLine(
                 color = axisColor,
                 start = Offset(leftPx, topPx),
@@ -458,22 +443,16 @@ private fun TemporalBarSection(
             val baseYLabel = bottomPx + with(density) { 20.dp.toPx() }
 
             meses.forEachIndexed { index, mes ->
-                val valor1 = opinioesMapa1[mes]?.let {
-                    if (tipo == TemporalOpiniaoTipo.POSITIVA) it.positivas else it.negativas
-                }?.coerceAtLeast(0) ?: 0
-                val valor2 = opinioesMapa2[mes]?.let {
-                    if (tipo == TemporalOpiniaoTipo.POSITIVA) it.positivas else it.negativas
-                }?.coerceAtLeast(0) ?: 0
-
-                val proporcao1 = (valor1.toFloat() / limiteSuperior).coerceIn(0f, 1f)
-                val proporcao2 = (valor2.toFloat() / limiteSuperior).coerceIn(0f, 1f)
+                val (valor1, valor2) = totais[mes] ?: (0 to 0)
+                val proporcao1 = if (limiteSuperior == 0f) 0f else (valor1 / limiteSuperior)
+                val proporcao2 = if (limiteSuperior == 0f) 0f else (valor2 / limiteSuperior)
 
                 val groupStart = leftPx + index * (groupWidthPx + groupSpacingPx)
                 val bar1Start = groupStart + barSpacingPx / 2f
                 val bar2Start = bar1Start + barWidthPx + barSpacingPx / 2f
 
-                val bar1Height = proporcao1 * chartHeightPx
-                val bar2Height = proporcao2 * chartHeightPx
+                val bar1Height = proporcao1.coerceIn(0f, 1f) * chartHeightPx
+                val bar2Height = proporcao2.coerceIn(0f, 1f) * chartHeightPx
 
                 drawRect(
                     color = Serie1Color.copy(alpha = 0.85f),
