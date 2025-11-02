@@ -5,7 +5,6 @@ package com.example.contender2.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -53,7 +52,8 @@ private fun LegendItem(
             text = label,
             style = MaterialTheme.typography.bodyMedium,
             maxLines = 2,               // permite quebrar em 2 linhas
-            overflow = TextOverflow.Clip
+            overflow = TextOverflow.Clip,
+            color = ChartTextColor
         )
     }
 }

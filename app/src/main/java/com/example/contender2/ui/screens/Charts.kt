@@ -48,6 +48,7 @@ import kotlin.math.sin
 
 private val Serie1Color = Color(0xFF6BA9FF) // azul
 private val Serie2Color = Color(0xFFFF80A6) // rosa
+internal val ChartTextColor = Color(0xFF2C1A57)
 
 private val AspectPalette = listOf(
     Color(0xFF6BA9FF), // azul
@@ -119,7 +120,12 @@ fun Charts(
             IconButton(onClick = { navController.popBackStack() }) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Voltar")
             }
-            Text("Comparação", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Text(
+                "Comparação",
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                color = ChartTextColor
+            )
         }
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -139,14 +145,14 @@ fun Charts(
                         containerColor = if (graficoSelecionado == opcao) Color(0xFFEBDEF0) else Color.Transparent
                     )
                 ) {
-                    Text(opcao)
+                    Text(opcao, color = ChartTextColor)
                 }
             }
         }
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        Text("Aspecto", fontWeight = FontWeight.Bold)
+        Text("Aspecto", fontWeight = FontWeight.Bold, color = ChartTextColor)
         Row(verticalAlignment = Alignment.CenterVertically) {
             OutlinedTextField(
                 value = aspecto,
@@ -158,10 +164,12 @@ fun Charts(
                         Icon(Icons.Default.Close, contentDescription = "Limpar")
                     }
                 },
-                placeholder = { Text("comida") }
+                placeholder = { Text("comida", color = ChartTextColor.copy(alpha = 0.6f)) }
             )
             Spacer(modifier = Modifier.width(8.dp))
-            Button(onClick = { /* filtro já é reativo */ }) { Text("Pesquisar") }
+            Button(onClick = { /* filtro já é reativo */ }) {
+                Text("Pesquisar", color = ChartTextColor)
+            }
         }
 
         if (erro != null) {
@@ -180,7 +188,7 @@ fun Charts(
                         opinioes2 = opinioesTempoRest2
                     )
                 } else {
-                    Text("Nenhum dado temporal para exibir.")
+                    Text("Nenhum dado temporal para exibir.", color = ChartTextColor)
                 }
             }
             "Pizza" -> {
@@ -190,7 +198,7 @@ fun Charts(
                 val categoriasRest2 = polaridadesCategoriaRest2.filter { it.qt_opinioes > 0 }
 
                 if (categoriasRest1.isEmpty() && categoriasRest2.isEmpty()) {
-                    Text("Nenhum dado de categorias para exibir.")
+                    Text("Nenhum dado de categorias para exibir.", color = ChartTextColor)
                 } else {
                     val scrollState = rememberScrollState()
                     Column(
@@ -218,7 +226,7 @@ fun Charts(
             "Radar" -> {
                 Spacer(Modifier.height(12.dp))
                 if (dadosFiltrados.isEmpty()) {
-                    Text("Nenhum dado para exibir com o filtro atual.")
+                    Text("Nenhum dado para exibir com o filtro atual.", color = ChartTextColor)
                 } else {
                     RadarChartTodosAspectos(dadosFiltrados, nome1Dec, nome2Dec)
                 }
@@ -234,7 +242,7 @@ fun Charts(
                     val temComparacoes = dadosFiltrados.isNotEmpty()
 
                     if (!temMediaMensal && !temComparacoes) {
-                        Text("Nenhum dado para exibir com o filtro atual.")
+                        Text("Nenhum dado para exibir com o filtro atual.", color = ChartTextColor)
                     } else {
                         if (temMediaMensal) {
                             MonthlyMediaSection(
@@ -255,7 +263,11 @@ fun Charts(
                                         .fillMaxWidth()
                                         .padding(vertical = 12.dp)
                                 ) {
-                                    Text("Aspecto: ${dado.aspecto}", fontWeight = FontWeight.Bold)
+                                    Text(
+                                        "Aspecto: ${dado.aspecto}",
+                                        fontWeight = FontWeight.Bold,
+                                        color = ChartTextColor
+                                    )
                                     Spacer(modifier = Modifier.height(8.dp))
 
                                     BarChartComparativo(
@@ -319,7 +331,8 @@ private fun TemporalComparativoChart(
         Text(
             text = "Opiniões ao longo do tempo",
             fontWeight = FontWeight.SemiBold,
-            fontSize = 18.sp
+            fontSize = 18.sp,
+            color = ChartTextColor
         )
 
         Spacer(modifier = Modifier.height(12.dp))
@@ -530,8 +543,6 @@ private fun MonthlyMediaSection(
 
     val positivosRest1 = remember(dadosRest1) { dadosRest1.associate { it.ano_mes to polaridadePositiva(it.media_polaridade) } }
     val positivosRest2 = remember(dadosRest2) { dadosRest2.associate { it.ano_mes to polaridadePositiva(it.media_polaridade) } }
-    val negativosRest1 = remember(dadosRest1) { dadosRest1.associate { it.ano_mes to polaridadeNegativa(it.media_polaridade) } }
-    val negativosRest2 = remember(dadosRest2) { dadosRest2.associate { it.ano_mes to polaridadeNegativa(it.media_polaridade) } }
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -543,7 +554,8 @@ private fun MonthlyMediaSection(
             Text(
                 text = "Média de polaridade mensal",
                 fontWeight = FontWeight.SemiBold,
-                fontSize = 18.sp
+                fontSize = 18.sp,
+                color = ChartTextColor
             )
 
             Spacer(Modifier.height(12.dp))
@@ -557,22 +569,12 @@ private fun MonthlyMediaSection(
 
             Spacer(Modifier.height(16.dp))
 
-            Text("Positivo", fontWeight = FontWeight.Bold)
+            Text("Positivo", fontWeight = FontWeight.Bold, color = ChartTextColor)
             Spacer(Modifier.height(8.dp))
             MonthlyBarChart(
                 mesesOrdenados = mesesOrdenados,
                 valoresRest1 = positivosRest1,
                 valoresRest2 = positivosRest2
-            )
-
-            Spacer(Modifier.height(16.dp))
-
-            Text("Negativo", fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(8.dp))
-            MonthlyBarChart(
-                mesesOrdenados = mesesOrdenados,
-                valoresRest1 = negativosRest1,
-                valoresRest2 = negativosRest2
             )
         }
     }
@@ -716,8 +718,6 @@ private fun MonthlyBarChart(
 
 private fun polaridadePositiva(valor: Float): Float = (valor.coerceAtLeast(0f) * 100f).coerceAtMost(100f)
 
-private fun polaridadeNegativa(valor: Float): Float = (-valor.coerceAtMost(0f) * 100f).coerceAtMost(100f)
-
 private fun formatarMesLabel(anoMes: String): String {
     val partes = anoMes.split("-")
     val nomes = listOf("jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez")
@@ -734,7 +734,11 @@ fun BarChartComparativo(original1: Float, original2: Float, nome1: String, nome2
     val max = maxOf(valor1, valor2, 1f)
 
     Column(modifier = Modifier.fillMaxWidth()) {
-        Text("$nome1: ${"%.3f".format(original1)}", fontSize = 12.sp)
+        Text(
+            "$nome1: ${"%.3f".format(original1)}",
+            fontSize = 12.sp,
+            color = ChartTextColor
+        )
         Box(
             modifier = Modifier
                 .fillMaxWidth(valor1 / max)
@@ -742,7 +746,11 @@ fun BarChartComparativo(original1: Float, original2: Float, nome1: String, nome2
                 .background(Serie1Color.copy(alpha = 0.75f))
         )
         Spacer(modifier = Modifier.height(4.dp))
-        Text("$nome2: ${"%.3f".format(original2)}", fontSize = 12.sp)
+        Text(
+            "$nome2: ${"%.3f".format(original2)}",
+            fontSize = 12.sp,
+            color = ChartTextColor
+        )
         Box(
             modifier = Modifier
                 .fillMaxWidth(valor2 / max)
@@ -777,7 +785,8 @@ private fun CategoriaPizzaSection(
         Text(
             text = titulo,
             fontWeight = FontWeight.SemiBold,
-            fontSize = 18.sp
+            fontSize = 18.sp,
+            color = ChartTextColor
         )
         Spacer(Modifier.height(12.dp))
 
@@ -798,7 +807,7 @@ private fun CategoriaPizzaSection(
                         .padding(vertical = 32.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("Sem dados suficientes", color = Color.Gray)
+                    Text("Sem dados suficientes", color = ChartTextColor)
                 }
             } else {
                 val total = ordenado.sumOf { it.qt_opinioes }
@@ -866,7 +875,7 @@ private fun CategoriaPieChart(
             modifier = modifier,
             contentAlignment = Alignment.Center
         ) {
-            Text("Sem dados", color = Color.Gray)
+            Text("Sem dados", color = ChartTextColor)
         }
         return
     }
@@ -942,7 +951,8 @@ private fun CategoriaLegendItem(
                 text = nome,
                 style = MaterialTheme.typography.bodyMedium,
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                overflow = TextOverflow.Ellipsis,
+                color = ChartTextColor
             )
         }
         Text(
@@ -964,8 +974,14 @@ fun RadarChartTodosAspectos(
     val MAX_AXES = 17
     val dados = aspectos.sortedBy { it.aspecto.lowercase() }.take(MAX_AXES)
 
-    if (dados.isEmpty()) { Text("Sem dados para o gráfico de radar."); return }
-    if (dados.size < 3) { Text("O gráfico de radar precisa de pelo menos 3 categorias."); return }
+    if (dados.isEmpty()) {
+        Text("Sem dados para o gráfico de radar.", color = ChartTextColor)
+        return
+    }
+    if (dados.size < 3) {
+        Text("O gráfico de radar precisa de pelo menos 3 categorias.", color = ChartTextColor)
+        return
+    }
 
     val labels = dados.map { it.aspecto }
     val valores1 = dados.map { normalize01(it.notaPredita1) }
@@ -1079,7 +1095,8 @@ private fun LegendItem(
             text = label,
             style = MaterialTheme.typography.bodyMedium,
             maxLines = 2,
-            overflow = TextOverflow.Clip
+            overflow = TextOverflow.Clip,
+            color = ChartTextColor
         )
     }
 }
