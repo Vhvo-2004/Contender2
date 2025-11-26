@@ -16,7 +16,7 @@ object RetrofitInstance {
 
     val api: ApiService by lazy {
         Retrofit.Builder()
-            .baseUrl("http://192.168.1.14:8000/") // ⚠️ Use 10.0.2.2 se rodando no emulador Android Studio
+            .baseUrl("https://api-paic.onrender.com/") // ⚠️ Use 10.0.2.2 se rodando no emulador Android Studio
             .addConverterFactory(GsonConverterFactory.create())
             .client(client)
             .build()

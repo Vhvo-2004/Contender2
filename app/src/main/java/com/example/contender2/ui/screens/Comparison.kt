@@ -174,9 +174,9 @@ fun SegmentedControl(
     selectedIndex: Int,
     onIndexSelected: (Int) -> Unit,
     modifier: Modifier = Modifier,
-    selectedColor: Color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
-    unselectedColor: Color = MaterialTheme.colorScheme.surface,
-    borderColor: Color = MaterialTheme.colorScheme.primary
+    selectedColor: Color = Color(0xFFD1C4E9), // lilás claro (fundo selecionado)
+    unselectedColor: Color = Color(0xFFF5F5F5), // cinza muito claro (fundo padrão)
+    borderColor: Color = Color(0xFF7E57C2) // roxo suave (borda)
 ) {
     Row(
         modifier = modifier
@@ -186,24 +186,26 @@ fun SegmentedControl(
             .border(BorderStroke(1.dp, borderColor), RoundedCornerShape(8.dp))
     ) {
         items.forEachIndexed { index, item ->
+            val isSelected = index == selectedIndex
             Box(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxHeight()
-                    .background(if (index == selectedIndex) selectedColor else unselectedColor)
+                    .background(if (isSelected) selectedColor else unselectedColor)
                     .clickable { onIndexSelected(index) },
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = item,
-                    color = if (index == selectedIndex) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-                    fontWeight = if (index == selectedIndex) FontWeight.Bold else FontWeight.Normal,
+                    color = if (isSelected) Color(0xFF311B92) else Color(0xFF3E3E3E),
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                     textAlign = TextAlign.Center
                 )
             }
         }
     }
 }
+
 
 @Composable
 fun ItemComentario(
@@ -216,12 +218,30 @@ fun ItemComentario(
         colors = CardDefaults.cardColors(containerColor = Color.White)
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
+            val textColor = Color.Black // ✅ força contraste sobre fundo branco
+
             val autor = comentario.autor?.takeIf { it.isNotBlank() } ?: "Desconhecido"
-            Text("Autor: $autor", fontWeight = FontWeight.Bold)
-            comentario.titulo?.let { Text(it) }
-            Text("Comentário: ${comentario.texto}")
-            comentario.data_publicacao?.let { Text("Data: $it") } // formate se desejar
-            Text("Curtidas: ${(comentario.curtidas ?: 0)}")
+            Text(
+                "Autor: $autor",
+                fontWeight = FontWeight.Bold,
+                color = textColor
+            )
+
+            comentario.titulo?.let {
+                Text(
+                    it,
+                    fontWeight = FontWeight.SemiBold,
+                    color = textColor
+                )
+            }
+
+            Text("Comentário: ${comentario.texto}", color = textColor)
+
+            comentario.data_publicacao?.let {
+                Text("Data: $it", color = textColor.copy(alpha = 0.8f))
+            }
+
+            Text("Curtidas: ${(comentario.curtidas ?: 0)}", color = textColor.copy(alpha = 0.8f))
 
             if (opinioes.isNotEmpty()) {
                 Spacer(Modifier.height(8.dp))
@@ -242,8 +262,18 @@ fun FlowRowChip(opinioes: List<OpiniaoDto>) {
         opinioes.forEach { op ->
             AssistChip(
                 onClick = {},
-                label = { Text("${op.aspecto} • ${op.sentimento ?: "neutro"}") }
+                label = {
+                    Text(
+                        "${op.aspecto} • ${op.sentimento ?: "neutro"}",
+                        color = Color.Black // ✅ garante contraste no texto do chip
+                    )
+                },
+                colors = AssistChipDefaults.assistChipColors(
+                    containerColor = Color(0xFFEFEFEF), // leve cinza para destacar
+                    labelColor = Color.Black
+                )
             )
         }
     }
 }
+

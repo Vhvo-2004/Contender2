@@ -292,7 +292,7 @@ private fun MonthlyMediaSection(
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
-        color = Color(0xFFF8F2FF),
+        color = Color(0xFF000000),
         border = BorderStroke(1.dp, Color(0xFFB39DDB).copy(alpha = 0.4f))
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -697,14 +697,16 @@ private fun CategoriaLegendItem(
                 style = MaterialTheme.typography.bodyMedium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                color = chartTextColor()
+                color = Color(0xFF2B2B2B) // forçar texto escuro na legenda
             )
+
         }
         Text(
             text = "$quantidade (${"%.2f".format(percentual * 100f)}%)",
             style = MaterialTheme.typography.bodySmall,
-            color = Color(0xFF6B6B6B)
+            color = Color(0xFF2B2B2B) // texto mais escuro para contraste
         )
+
     }
 }
 
