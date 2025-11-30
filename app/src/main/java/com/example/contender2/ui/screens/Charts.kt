@@ -216,47 +216,16 @@ fun Charts(
                         .verticalScroll(rememberScrollState())
                 ) {
                     val temMediaMensal = mediasMensaisRest1.isNotEmpty() || mediasMensaisRest2.isNotEmpty()
-                    val temComparacoes = dadosFiltrados.isNotEmpty()
 
-                    if (!temMediaMensal && !temComparacoes) {
+                    if (!temMediaMensal) {
                         Text("Nenhum dado para exibir com o filtro atual.", color = chartTextColor())
                     } else {
-                        if (temMediaMensal) {
-                            MonthlyMediaSection(
-                                nomeRestaurante1 = nome1Dec,
-                                nomeRestaurante2 = nome2Dec,
-                                dadosRest1 = mediasMensaisRest1,
-                                dadosRest2 = mediasMensaisRest2
-                            )
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Divider()
-                            Spacer(modifier = Modifier.height(16.dp))
-                        }
-
-                        if (temComparacoes) {
-                            dadosFiltrados.forEach { dado ->
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = 12.dp)
-                                ) {
-                                    Text(
-                                        "Aspecto: ${dado.aspecto}",
-                                        fontWeight = FontWeight.Bold,
-                                        color = chartTextColor()
-                                    )
-                                    Spacer(modifier = Modifier.height(8.dp))
-
-                                    BarChartComparativo(
-                                        original1 = dado.notaPredita1,
-                                        original2 = dado.notaPredita2,
-                                        nome1 = nome1Dec, nome2 = nome2Dec
-                                    )
-                                    Spacer(modifier = Modifier.height(12.dp))
-                                    Divider()
-                                }
-                            }
-                        }
+                        MonthlyMediaSection(
+                            nomeRestaurante1 = nome1Dec,
+                            nomeRestaurante2 = nome2Dec,
+                            dadosRest1 = mediasMensaisRest1,
+                            dadosRest2 = mediasMensaisRest2
+                        )
                     }
                 }
             }
@@ -286,8 +255,8 @@ private fun MonthlyMediaSection(
 
     if (mesesOrdenados.isEmpty()) return
 
-    val positivosRest1 = remember(dadosRest1) { dadosRest1.associate { it.ano_mes to polaridadePositiva(it.media_polaridade) } }
-    val positivosRest2 = remember(dadosRest2) { dadosRest2.associate { it.ano_mes to polaridadePositiva(it.media_polaridade) } }
+    val polaridadesRest1 = remember(dadosRest1) { dadosRest1.associate { it.ano_mes to polaridadePercentual(it.media_polaridade) } }
+    val polaridadesRest2 = remember(dadosRest2) { dadosRest2.associate { it.ano_mes to polaridadePercentual(it.media_polaridade) } }
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -314,12 +283,18 @@ private fun MonthlyMediaSection(
 
             Spacer(Modifier.height(16.dp))
 
-            Text("Positivo", fontWeight = FontWeight.Bold, color = chartTextColor())
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text("Ruim (-)", fontWeight = FontWeight.Bold, color = chartTextColor())
+                Text("Bom (+)", fontWeight = FontWeight.Bold, color = chartTextColor())
+            }
             Spacer(Modifier.height(8.dp))
             MonthlyBarChart(
                 mesesOrdenados = mesesOrdenados,
-                valoresRest1 = positivosRest1,
-                valoresRest2 = positivosRest2
+                valoresRest1 = polaridadesRest1,
+                valoresRest2 = polaridadesRest2
             )
         }
     }
@@ -350,7 +325,7 @@ private fun MonthlyBarChart(
     val chartWidth = (leftPadding + rightPadding + totalGroupsWidth + totalSpacing)
         .coerceAtLeast(320.dp)
 
-    val tickValues = listOf(0f, 20f, 40f, 60f, 80f, 100f)
+    val tickValues = listOf(-100f, -50f, 0f, 50f, 100f)
     val axisColor = Color(0xFFC8A8F0)
     val gridColor = Color(0xFFEADCF8)
     val axisStrokeWidth = with(density) { 1.5.dp.toPx() }
@@ -371,6 +346,8 @@ private fun MonthlyBarChart(
             val topPx = topPadding.toPx()
             val bottomPx = size.height - bottomPadding.toPx()
             val chartHeightPx = bottomPx - topPx
+            val halfHeight = chartHeightPx / 2f
+            val zeroY = bottomPx - halfHeight
             val groupWidthPx = groupWidth.toPx()
             val groupSpacingPx = groupSpacing.toPx()
             val barSpacingPx = barSpacing.toPx()
@@ -391,7 +368,7 @@ private fun MonthlyBarChart(
 
             // Grid horizontal e labels do eixo Y
             tickValues.forEach { tick ->
-                val y = bottomPx - (tick / 100f) * chartHeightPx
+                val y = zeroY - (tick / 100f) * halfHeight
                 drawLine(
                     color = gridColor,
                     start = Offset(leftPx, y),
@@ -415,8 +392,8 @@ private fun MonthlyBarChart(
             )
             drawLine(
                 color = axisColor,
-                start = Offset(leftPx, bottomPx),
-                end = Offset(rightPx, bottomPx),
+                start = Offset(leftPx, zeroY),
+                end = Offset(rightPx, zeroY),
                 strokeWidth = axisStrokeWidth
             )
 
@@ -430,8 +407,8 @@ private fun MonthlyBarChart(
             val baseYLabel = bottomPx + with(density) { 20.dp.toPx() }
 
             mesesOrdenados.forEachIndexed { index, mes ->
-                val valor1 = valoresRest1[mes]?.coerceIn(0f, 100f) ?: 0f
-                val valor2 = valoresRest2[mes]?.coerceIn(0f, 100f) ?: 0f
+                val valor1 = valoresRest1[mes]?.coerceIn(-100f, 100f) ?: 0f
+                val valor2 = valoresRest2[mes]?.coerceIn(-100f, 100f) ?: 0f
                 val label = formatarMesLabel(mes)
 
                 val groupStart = leftPx + index * (groupWidthPx + groupSpacingPx)
@@ -439,19 +416,24 @@ private fun MonthlyBarChart(
                 val bar1Start = groupStart + barSpacingPx / 2f
                 val bar2Start = bar1Start + barWidthPx + barSpacingPx / 2f
 
-                val bar1Height = (valor1 / 100f) * chartHeightPx
-                val bar2Height = (valor2 / 100f) * chartHeightPx
+                val bar1Height = (kotlin.math.abs(valor1) / 100f) * halfHeight
+                val bar2Height = (kotlin.math.abs(valor2) / 100f) * halfHeight
+
+                val bar1Top = if (valor1 >= 0) zeroY - bar1Height else zeroY
+                val bar2Top = if (valor2 >= 0) zeroY - bar2Height else zeroY
+                val bar1Size = Size(barWidthPx, bar1Height)
+                val bar2Size = Size(barWidthPx, bar2Height)
 
                 drawRect(
                     color = Serie1Color.copy(alpha = 0.85f),
-                    topLeft = Offset(bar1Start, bottomPx - bar1Height),
-                    size = Size(barWidthPx, bar1Height)
+                    topLeft = Offset(bar1Start, bar1Top),
+                    size = bar1Size
                 )
 
                 drawRect(
                     color = Serie2Color.copy(alpha = 0.85f),
-                    topLeft = Offset(bar2Start, bottomPx - bar2Height),
-                    size = Size(barWidthPx, bar2Height)
+                    topLeft = Offset(bar2Start, bar2Top),
+                    size = bar2Size
                 )
 
                 val labelX = groupStart + groupWidthPx / 2f
@@ -461,7 +443,7 @@ private fun MonthlyBarChart(
     }
 }
 
-private fun polaridadePositiva(valor: Float): Float = (valor.coerceAtLeast(0f) * 100f).coerceAtMost(100f)
+private fun polaridadePercentual(valor: Float): Float = (valor.coerceIn(-1f, 1f) * 100f)
 
 private fun formatarMesLabel(anoMes: String): String {
     val partes = anoMes.split("-")
