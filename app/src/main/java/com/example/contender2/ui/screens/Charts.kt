@@ -170,6 +170,14 @@ fun Charts(
         } else when (graficoSelecionado) {
             "Pizza" -> {
                 Spacer(Modifier.height(12.dp))
+                Text(
+                    text = "Aspectos mais comentados dos restaurantes.",
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 16.sp,
+                    color = chartTextColor(),
+                    modifier = Modifier.padding(bottom = 12.dp)
+                )
+                Spacer(Modifier.height(12.dp))
 
                 val categoriasRest1 = polaridadesCategoriaRest1.filter { it.qt_opinioes > 0 }
                 val categoriasRest2 = polaridadesCategoriaRest2.filter { it.qt_opinioes > 0 }
@@ -233,6 +241,17 @@ fun Charts(
                             Spacer(modifier = Modifier.height(16.dp))
                         }
 
+                        Text(
+                            text = "Comparaçao por aspecto Geral",
+                            fontSize = 18.sp,
+                            color = chartTextColor().copy(alpha = 0.85f),
+                            lineHeight = 20.sp,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)
+                        )
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
                         if (temComparacoes) {
                             dadosFiltrados.forEach { dado ->
                                 Column(
@@ -268,6 +287,8 @@ fun Charts(
 
 /** Normaliza valor de [-1, 1] para [0, 1] só para desenho. */
 private fun normalize01(v: Float): Float = ((v + 1f) / 2f).coerceIn(0f, 1f)
+private fun polaridadeEscalonada(valor: Float): Float =
+    (valor * 100f).coerceIn(-100f, 100f)
 
 /* =================== Média Mensal =================== */
 
@@ -286,18 +307,23 @@ private fun MonthlyMediaSection(
 
     if (mesesOrdenados.isEmpty()) return
 
-    val positivosRest1 = remember(dadosRest1) { dadosRest1.associate { it.ano_mes to polaridadePositiva(it.media_polaridade) } }
-    val positivosRest2 = remember(dadosRest2) { dadosRest2.associate { it.ano_mes to polaridadePositiva(it.media_polaridade) } }
+    val valoresRest1 = remember(dadosRest1) {
+        dadosRest1.associate { it.ano_mes to polaridadeEscalonada(it.media_polaridade) }
+    }
+    val valoresRest2 = remember(dadosRest2) {
+        dadosRest2.associate { it.ano_mes to polaridadeEscalonada(it.media_polaridade) }
+    }
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
-        color = Color(0xFF000000),
+        color = Color(0xFFF8F2FF),
         border = BorderStroke(1.dp, Color(0xFFB39DDB).copy(alpha = 0.4f))
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
+
             Text(
-                text = "Média de polaridade mensal",
+                text = "Comparação Geral Mensal",
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 18.sp,
                 color = chartTextColor()
@@ -314,23 +340,32 @@ private fun MonthlyMediaSection(
 
             Spacer(Modifier.height(16.dp))
 
-            Text("Positivo", fontWeight = FontWeight.Bold, color = chartTextColor())
-            Spacer(Modifier.height(8.dp))
+            //Indicador de escala (Ruim → Bom)
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+
+            }
+
+            Spacer(Modifier.height(12.dp))
+
             MonthlyBarChart(
                 mesesOrdenados = mesesOrdenados,
-                valoresRest1 = positivosRest1,
-                valoresRest2 = positivosRest2
+                valoresRest1 = valoresRest1,
+                valoresRest2 = valoresRest2
             )
         }
     }
 }
+
 
 @Composable
 private fun MonthlyBarChart(
     mesesOrdenados: List<String>,
     valoresRest1: Map<String, Float>,
     valoresRest2: Map<String, Float>,
-    chartHeight: Dp = 180.dp
+    chartHeight: Dp = 220.dp
 ) {
     if (mesesOrdenados.isEmpty()) return
 
@@ -348,13 +383,12 @@ private fun MonthlyBarChart(
     val totalGroupsWidth = groupWidth * mesesOrdenados.size
     val totalSpacing = groupSpacing * (mesesOrdenados.size - 1).coerceAtLeast(0)
     val chartWidth = (leftPadding + rightPadding + totalGroupsWidth + totalSpacing)
-        .coerceAtLeast(320.dp)
+        .coerceAtLeast(360.dp)
 
-    val tickValues = listOf(0f, 20f, 40f, 60f, 80f, 100f)
+    // NOVO: eixo de -100 até +100
+    val tickValues = listOf(-100f, -50f, 0f, 50f, 100f)
     val axisColor = Color(0xFFC8A8F0)
     val gridColor = Color(0xFFEADCF8)
-    val axisStrokeWidth = with(density) { 1.5.dp.toPx() }
-    val gridStrokeWidth = with(density) { 1.dp.toPx() }
 
     Box(
         modifier = Modifier
@@ -366,11 +400,15 @@ private fun MonthlyBarChart(
                 .height(chartHeight + topPadding + bottomPadding)
                 .width(chartWidth)
         ) {
+
             val leftPx = leftPadding.toPx()
             val rightPx = size.width - rightPadding.toPx()
             val topPx = topPadding.toPx()
             val bottomPx = size.height - bottomPadding.toPx()
-            val chartHeightPx = bottomPx - topPx
+            val fullHeight = bottomPx - topPx
+
+            val zeroY = topPx + (fullHeight / 2) // centro
+
             val groupWidthPx = groupWidth.toPx()
             val groupSpacingPx = groupSpacing.toPx()
             val barSpacingPx = barSpacing.toPx()
@@ -382,84 +420,87 @@ private fun MonthlyBarChart(
                 textAlign = android.graphics.Paint.Align.CENTER
                 isAntiAlias = true
             }
-
             val axisLabelPaint = android.graphics.Paint().apply {
                 color = android.graphics.Color.parseColor("#7A6AA6")
                 textSize = with(density) { 12.sp.toPx() }
                 isAntiAlias = true
             }
 
-            // Grid horizontal e labels do eixo Y
+            // GRID horizontal
             tickValues.forEach { tick ->
-                val y = bottomPx - (tick / 100f) * chartHeightPx
+                val y = zeroY - (tick / 100f) * (fullHeight / 2f)
                 drawLine(
-                    color = gridColor,
+                    color = if (tick == 0f) Color.Gray else gridColor,
                     start = Offset(leftPx, y),
                     end = Offset(rightPx, y),
-                    strokeWidth = gridStrokeWidth
+                    strokeWidth = 1f
                 )
                 drawContext.canvas.nativeCanvas.drawText(
                     tick.toInt().toString(),
-                    leftPx - with(density) { 12.dp.toPx() },
-                    y + with(density) { 4.dp.toPx() },
+                    leftPx - 20.dp.toPx(),
+                    y + 4.dp.toPx(),
                     axisLabelPaint
                 )
             }
 
-            // Eixos
+            // EIXOS
             drawLine(
                 color = axisColor,
                 start = Offset(leftPx, topPx),
                 end = Offset(leftPx, bottomPx),
-                strokeWidth = axisStrokeWidth
+                strokeWidth = 2f
             )
             drawLine(
                 color = axisColor,
-                start = Offset(leftPx, bottomPx),
-                end = Offset(rightPx, bottomPx),
-                strokeWidth = axisStrokeWidth
+                start = Offset(leftPx, zeroY),
+                end = Offset(rightPx, zeroY),
+                strokeWidth = 2f
             )
 
-            drawContext.canvas.nativeCanvas.drawText(
-                "y",
-                leftPx - with(density) { 20.dp.toPx() },
-                topPx - with(density) { 4.dp.toPx() },
-                axisLabelPaint
-            )
-
-            val baseYLabel = bottomPx + with(density) { 20.dp.toPx() }
-
+            // DESENHO DAS BARRAS
             mesesOrdenados.forEachIndexed { index, mes ->
-                val valor1 = valoresRest1[mes]?.coerceIn(0f, 100f) ?: 0f
-                val valor2 = valoresRest2[mes]?.coerceIn(0f, 100f) ?: 0f
+
+                val v1 = valoresRest1[mes] ?: 0f
+                val v2 = valoresRest2[mes] ?: 0f
                 val label = formatarMesLabel(mes)
 
                 val groupStart = leftPx + index * (groupWidthPx + groupSpacingPx)
 
-                val bar1Start = groupStart + barSpacingPx / 2f
-                val bar2Start = bar1Start + barWidthPx + barSpacingPx / 2f
+                val bar1X = groupStart + barSpacingPx / 2f
+                val bar2X = bar1X + barWidthPx + barSpacingPx / 2f
 
-                val bar1Height = (valor1 / 100f) * chartHeightPx
-                val bar2Height = (valor2 / 100f) * chartHeightPx
+                fun barEndY(valor: Float): Float {
+                    return zeroY - (valor / 100f) * (fullHeight / 2f)
+                }
 
-                drawRect(
-                    color = Serie1Color.copy(alpha = 0.85f),
-                    topLeft = Offset(bar1Start, bottomPx - bar1Height),
-                    size = Size(barWidthPx, bar1Height)
+                // barra 1
+                drawLine(
+                    color = Serie1Color,
+                    start = Offset(bar1X + barWidthPx / 2, zeroY),
+                    end = Offset(bar1X + barWidthPx / 2, barEndY(v1)),
+                    strokeWidth = barWidthPx
                 )
 
-                drawRect(
-                    color = Serie2Color.copy(alpha = 0.85f),
-                    topLeft = Offset(bar2Start, bottomPx - bar2Height),
-                    size = Size(barWidthPx, bar2Height)
+                // barra 2
+                drawLine(
+                    color = Serie2Color,
+                    start = Offset(bar2X + barWidthPx / 2, zeroY),
+                    end = Offset(bar2X + barWidthPx / 2, barEndY(v2)),
+                    strokeWidth = barWidthPx
                 )
 
-                val labelX = groupStart + groupWidthPx / 2f
-                drawContext.canvas.nativeCanvas.drawText(label, labelX, baseYLabel, labelPaint)
+                // label mês
+                drawContext.canvas.nativeCanvas.drawText(
+                    label,
+                    groupStart + groupWidthPx / 2,
+                    bottomPx + 20.dp.toPx(),
+                    labelPaint
+                )
             }
         }
     }
 }
+
 
 private fun polaridadePositiva(valor: Float): Float = (valor.coerceAtLeast(0f) * 100f).coerceAtMost(100f)
 
