@@ -304,6 +304,7 @@ private fun MonthlyMediaSection(
             .distinct()
             .sorted()
     }
+    var periodoSelecionado by remember { mutableStateOf(MonthRange.LAST_6) }
 
     if (mesesOrdenados.isEmpty()) return
 
@@ -350,8 +351,40 @@ private fun MonthlyMediaSection(
 
             Spacer(Modifier.height(12.dp))
 
+            Text(
+                text = "Período",
+                fontWeight = FontWeight.Medium,
+                fontSize = 14.sp,
+                color = chartTextColor()
+            )
+            Spacer(Modifier.height(8.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                MonthRange.entries.forEach { periodo ->
+                    OutlinedButton(
+                        onClick = { periodoSelecionado = periodo },
+                        border = BorderStroke(1.dp, Color(0xFFB39DDB)),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = if (periodoSelecionado == periodo) {
+                                Color(0xFFEBDEF0)
+                            } else {
+                                Color.Transparent
+                            }
+                        ),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(periodo.label, color = chartTextColor())
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(12.dp))
+
             MonthlyBarChart(
-                mesesOrdenados = mesesOrdenados,
+                mesesOrdenados = periodoSelecionado.filtrarMeses(mesesOrdenados),
                 valoresRest1 = valoresRest1,
                 valoresRest2 = valoresRest2
             )
@@ -509,6 +542,21 @@ private fun formatarMesLabel(anoMes: String): String {
     val nomes = listOf("jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez")
     val mes = partes.getOrNull(1)?.toIntOrNull()
     return if (mes != null && mes in 1..12) nomes[mes - 1] else anoMes
+}
+
+private enum class MonthRange(val label: String, val meses: Int?) {
+    LAST_3("3 meses", 3),
+    LAST_6("6 meses", 6),
+    ALL("Todos", null);
+
+    fun filtrarMeses(mesesOrdenados: List<String>): List<String> {
+        val limite = meses
+        return if (limite == null) {
+            mesesOrdenados
+        } else {
+            mesesOrdenados.takeLast(limite)
+        }
+    }
 }
 
 /* =================== Histograma =================== */
