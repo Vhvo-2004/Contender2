@@ -305,6 +305,7 @@ private fun MonthlyMediaSection(
             .sorted()
     }
     var periodoSelecionado by remember { mutableStateOf(MonthRange.LAST_6) }
+    var mesesPersonalizados by remember { mutableStateOf(6) }
 
     if (mesesOrdenados.isEmpty()) return
 
@@ -353,11 +354,17 @@ private fun MonthlyMediaSection(
 
             MonthRangeSelector(
                 periodoSelecionado = periodoSelecionado,
-                onPeriodoSelecionado = { periodoSelecionado = it }
+                mesesPersonalizados = mesesPersonalizados,
+                onPeriodoSelecionado = { periodoSelecionado = it },
+                onMesesPersonalizadosChange = { mesesPersonalizados = it }
             )
 
             MonthlyBarChart(
-                mesesOrdenados = periodoSelecionado.filtrarMeses(mesesOrdenados),
+                mesesOrdenados = filtrarMesesPorPeriodo(
+                    mesesOrdenados = mesesOrdenados,
+                    periodoSelecionado = periodoSelecionado,
+                    mesesPersonalizados = mesesPersonalizados
+                ),
                 valoresRest1 = valoresRest1,
                 valoresRest2 = valoresRest2
             )
@@ -520,7 +527,9 @@ private fun formatarMesLabel(anoMes: String): String {
 @Composable
 private fun MonthRangeSelector(
     periodoSelecionado: MonthRange,
-    onPeriodoSelecionado: (MonthRange) -> Unit
+    mesesPersonalizados: Int,
+    onPeriodoSelecionado: (MonthRange) -> Unit,
+    onMesesPersonalizadosChange: (Int) -> Unit
 ) {
     Text(
         text = "Período",
@@ -534,7 +543,7 @@ private fun MonthRangeSelector(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        MonthRange.entries.forEach { periodo ->
+        MonthRange.entries.filter { it.exibirComoBotao }.forEach { periodo ->
             OutlinedButton(
                 onClick = { onPeriodoSelecionado(periodo) },
                 border = BorderStroke(1.dp, Color(0xFFB39DDB)),
@@ -553,20 +562,50 @@ private fun MonthRangeSelector(
     }
 
     Spacer(Modifier.height(12.dp))
+
+    Text(
+        text = "Meses: $mesesPersonalizados",
+        fontSize = 13.sp,
+        color = chartTextColor().copy(alpha = 0.8f)
+    )
+
+    Slider(
+        value = mesesPersonalizados.toFloat(),
+        onValueChange = {
+            onPeriodoSelecionado(MonthRange.CUSTOM)
+            onMesesPersonalizadosChange(it.toInt().coerceIn(1, 12))
+        },
+        valueRange = 1f..12f,
+        steps = 10,
+        colors = SliderDefaults.colors(
+            thumbColor = Color(0xFFB39DDB),
+            activeTrackColor = Color(0xFFB39DDB)
+        )
+    )
+
+    Spacer(Modifier.height(12.dp))
 }
 
-private enum class MonthRange(val label: String, val meses: Int?) {
-    LAST_3("3 meses", 3),
-    LAST_6("6 meses", 6),
-    ALL("Todos", null);
+private enum class MonthRange(
+    val label: String,
+    val meses: Int?,
+    val exibirComoBotao: Boolean
+) {
+    LAST_3("3 meses", 3, true),
+    LAST_6("6 meses", 6, true),
+    ALL("Todos", null, true),
+    CUSTOM("Personalizado", null, false);
+}
 
-    fun filtrarMeses(mesesOrdenados: List<String>): List<String> {
-        val limite = meses
-        return if (limite == null) {
-            mesesOrdenados
-        } else {
-            mesesOrdenados.takeLast(limite)
-        }
+private fun filtrarMesesPorPeriodo(
+    mesesOrdenados: List<String>,
+    periodoSelecionado: MonthRange,
+    mesesPersonalizados: Int
+): List<String> {
+    return when (periodoSelecionado) {
+        MonthRange.ALL -> mesesOrdenados
+        MonthRange.CUSTOM -> mesesOrdenados.takeLast(mesesPersonalizados.coerceIn(1, 12))
+        else -> mesesOrdenados.takeLast(periodoSelecionado.meses ?: mesesOrdenados.size)
     }
 }
 
