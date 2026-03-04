@@ -7,6 +7,8 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -26,10 +28,31 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.contender2.R
+import com.example.contender2.network.ComentarioDto
+import com.example.contender2.network.OpiniaoDto
 import com.example.contender2.network.RestauranteDto
 import com.example.contender2.network.RetrofitInstance
 import com.example.contender2.ui.theme.Contender2Theme
 import java.net.URLEncoder
+import kotlin.math.roundToInt
+
+private data class CriterioPreferencia(
+    val nome: String,
+    val aliases: List<String>
+)
+
+private data class RestauranteRanking(
+    val restaurante: RestauranteDto,
+    val score: Float,
+    val aspectosAvaliados: Int
+)
+
+private val criteriosRanking = listOf(
+    CriterioPreferencia("Comida", listOf("comida", "sabor", "prato", "cardapio", "porção", "porcao")),
+    CriterioPreferencia("Atendimento", listOf("atendimento", "garçom", "garcom", "equipe", "staff", "serviço", "servico")),
+    CriterioPreferencia("Ambiente", listOf("ambiente", "local", "decoração", "decoracao", "espaço", "espaco", "limpeza")),
+    CriterioPreferencia("Custo-benefício", listOf("preço", "preco", "valor", "custo", "caro", "barato", "benefício", "beneficio"))
+)
 
 class MainActivity : ComponentActivity() {
     @OptIn(ExperimentalMaterial3Api::class)
@@ -73,6 +96,9 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun HomeScreen(navController: NavController) {
     var restaurantes by remember { mutableStateOf<List<RestauranteDto>>(emptyList()) }
+    var comentarios by remember { mutableStateOf<List<ComentarioDto>>(emptyList()) }
+    var opinioes by remember { mutableStateOf<List<OpiniaoDto>>(emptyList()) }
+    var erroRanking by remember { mutableStateOf<String?>(null) }
 
     var searchQuery1 by remember { mutableStateOf("") }
     var searchQuery2 by remember { mutableStateOf("") }
@@ -83,12 +109,19 @@ fun HomeScreen(navController: NavController) {
     var selecionado1 by remember { mutableStateOf<RestauranteDto?>(null) }
     var selecionado2 by remember { mutableStateOf<RestauranteDto?>(null) }
 
+    var pesosCriterios by remember {
+        mutableStateOf(criteriosRanking.associateWith { 1f })
+    }
+
     LaunchedEffect(Unit) {
         try {
             restaurantes = RetrofitInstance.api.getRestaurantes()
+            comentarios = RetrofitInstance.api.getComentarios()
+            opinioes = RetrofitInstance.api.getOpinioes()
             Log.d("API_TEST", "Recebido: ${restaurantes.size} restaurantes")
         } catch (e: Exception) {
             Log.e("API_TEST", "Erro: ${e.message}")
+            erroRanking = e.message
         }
     }
 
@@ -104,8 +137,50 @@ fun HomeScreen(navController: NavController) {
     val filteredList1 = restaurantes.filter { it.nome.contains(searchQuery1, ignoreCase = true) }
     val filteredList2 = restaurantes.filter { it.nome.contains(searchQuery2, ignoreCase = true) }
 
+    fun calcularRankingPersonalizado(): List<RestauranteRanking> {
+        if (restaurantes.isEmpty() || comentarios.isEmpty() || opinioes.isEmpty()) return emptyList()
+
+        val comentarioParaRestaurante = comentarios.associate { it.id to it.restaurante_id }
+        val pesosAtivos = pesosCriterios.filterValues { it > 0f }
+        if (pesosAtivos.isEmpty()) return emptyList()
+
+        val somaPesos = pesosAtivos.values.sum()
+        val opinioesPorRestaurante = opinioes.groupBy { comentarioParaRestaurante[it.comentario_id] }
+
+        return restaurantes.map { restaurante ->
+            val opinioesDoRestaurante = opinioesPorRestaurante[restaurante.id].orEmpty()
+
+            var scoreTotal = 0f
+            var criteriosComDados = 0
+
+            pesosAtivos.forEach { (criterio, peso) ->
+                val opinioesDoCriterio = opinioesDoRestaurante.filter { opiniao ->
+                    val aspecto = opiniao.aspecto.lowercase()
+                    criterio.aliases.any { alias -> aspecto.contains(alias.lowercase()) }
+                }
+
+                if (opinioesDoCriterio.isNotEmpty()) {
+                    val mediaPolaridade = opinioesDoCriterio.mapNotNull { it.polaridade }.average().toFloat()
+                    val notaEscala10 = ((mediaPolaridade + 1f) / 2f) * 10f
+                    scoreTotal += notaEscala10 * peso
+                    criteriosComDados++
+                }
+            }
+
+            val scoreFinal = if (criteriosComDados == 0) 0f else scoreTotal / somaPesos
+            RestauranteRanking(restaurante, scoreFinal, criteriosComDados)
+        }.sortedByDescending { it.score }
+    }
+
+    val rankingPersonalizado by remember(restaurantes, comentarios, opinioes, pesosCriterios) {
+        mutableStateOf(calcularRankingPersonalizado())
+    }
+
     Column(
-        modifier = Modifier.fillMaxSize().padding(16.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp),
         verticalArrangement = Arrangement.Top,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -232,6 +307,64 @@ fun HomeScreen(navController: NavController) {
             Icon(imageVector = Icons.Default.Search, contentDescription = "Comparar")
             Spacer(Modifier.width(8.dp))
             Text("Comparar aspectos (gráficos)")
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+        Divider()
+        Spacer(modifier = Modifier.height(24.dp))
+
+        Text(
+            text = "Ranqueamento personalizado",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = "Defina os pesos para encontrar o restaurante ideal para você.",
+            style = MaterialTheme.typography.bodyMedium
+        )
+
+        criteriosRanking.forEach { criterio ->
+            val pesoAtual = pesosCriterios[criterio] ?: 0f
+            Spacer(modifier = Modifier.height(12.dp))
+            Text("${criterio.nome}: ${(pesoAtual * 20).roundToInt()}%")
+            Slider(
+                value = pesoAtual,
+                onValueChange = { novoPeso ->
+                    pesosCriterios = pesosCriterios.toMutableMap().apply { put(criterio, novoPeso) }
+                },
+                valueRange = 0f..5f,
+                steps = 4,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+        when {
+            erroRanking != null -> Text("Erro ao calcular ranking: $erroRanking", color = MaterialTheme.colorScheme.error)
+            rankingPersonalizado.isEmpty() -> Text("Sem dados suficientes para ranquear restaurantes com os critérios selecionados.")
+            else -> {
+                Text("Top recomendações", fontWeight = FontWeight.SemiBold)
+                Spacer(modifier = Modifier.height(8.dp))
+                rankingPersonalizado.take(5).forEachIndexed { index, item ->
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Text(
+                                text = "#${index + 1} ${item.restaurante.nome}",
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(text = "Score: ${"%.1f".format(item.score)}/10")
+                            Text(text = "Critérios com dados: ${item.aspectosAvaliados}")
+                        }
+                    }
+                }
+            }
         }
     }
 }
