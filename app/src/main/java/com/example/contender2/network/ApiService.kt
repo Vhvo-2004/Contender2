@@ -13,6 +13,16 @@ data class ChartPolaridadeCategoriaDto(
     val avg_polaridade: Double,
     val updated_at: String
 )
+
+data class ChartPolaridadeCategoriaTemporalDto(
+    val restaurante_id: Int,
+    val categoria_id: Int,
+    val categoria_nome: String? = null,
+    val periodo: String,
+    val qt_opinioes: Int,
+    val avg_polaridade: Double,
+    val updated_at: String
+)
 data class ChartPolaridadeAspectoDto(
     val restaurante_id: Int,
     val aspecto: String,
@@ -130,6 +140,11 @@ interface ApiService {
     suspend fun chartPolaridadeCategoria(
         @Path("restaurante_id") restauranteId: Int
     ): List<ChartPolaridadeCategoriaDto>
+
+    @GET("charts/polaridade-categoria-temporal/{restaurante_id}")
+    suspend fun chartPolaridadeCategoriaTemporal(
+        @Path("restaurante_id") restauranteId: Int
+    ): List<ChartPolaridadeCategoriaTemporalDto>
 
     @GET("charts/genero/{restaurante_id}")
     suspend fun chartGenero(
