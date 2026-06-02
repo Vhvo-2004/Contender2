@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.example.contender2.network.AspectoComparadoDto
 import com.example.contender2.network.ChartPolaridadeCategoriaDto
+import com.example.contender2.network.ChartPolaridadeCategoriaTemporalDto
 import com.example.contender2.network.MediaMensalDto
 import com.example.contender2.network.RetrofitInstance
 import java.net.URLDecoder
@@ -78,8 +79,8 @@ fun Charts(
 
     var polaridadesCategoriaRest1 by remember { mutableStateOf<List<ChartPolaridadeCategoriaDto>>(emptyList()) }
     var polaridadesCategoriaRest2 by remember { mutableStateOf<List<ChartPolaridadeCategoriaDto>>(emptyList()) }
-    var mediasMensaisRest1 by remember { mutableStateOf<List<MediaMensalDto>>(emptyList()) }
-    var mediasMensaisRest2 by remember { mutableStateOf<List<MediaMensalDto>>(emptyList()) }
+    var polaridadesCategoriaTemporalRest1 by remember { mutableStateOf<List<ChartPolaridadeCategoriaTemporalDto>>(emptyList()) }
+    var polaridadesCategoriaTemporalRest2 by remember { mutableStateOf<List<ChartPolaridadeCategoriaTemporalDto>>(emptyList()) }
     // Decodifica os nomes
     val nome1Dec = remember(nome1) { URLDecoder.decode(nome1, "UTF-8") }
     val nome2Dec = remember(nome2) { URLDecoder.decode(nome2, "UTF-8") }
@@ -90,8 +91,8 @@ fun Charts(
             comparacoes = RetrofitInstance.api.compararAspectos(id1, id2)
             polaridadesCategoriaRest1 = RetrofitInstance.api.chartPolaridadeCategoria(id1)
             polaridadesCategoriaRest2 = RetrofitInstance.api.chartPolaridadeCategoria(id2)
-            mediasMensaisRest1 = RetrofitInstance.api.getMediaMensal(id1)
-            mediasMensaisRest2 = RetrofitInstance.api.getMediaMensal(id2)
+            polaridadesCategoriaTemporalRest1 = RetrofitInstance.api.chartPolaridadeCategoriaTemporal(id1)
+            polaridadesCategoriaTemporalRest2 = RetrofitInstance.api.chartPolaridadeCategoriaTemporal(id2)
         } catch (e: Exception) {
             e.printStackTrace()
             erro = e.message ?: "Erro ao carregar dados"
@@ -145,7 +146,7 @@ fun Charts(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        Text("Aspecto", fontWeight = FontWeight.Bold, color = chartTextColor())
+        Text("Aspecto ou categoria", fontWeight = FontWeight.Bold, color = chartTextColor())
         Row(verticalAlignment = Alignment.CenterVertically) {
             OutlinedTextField(
                 value = aspecto,
@@ -157,7 +158,7 @@ fun Charts(
                         Icon(Icons.Default.Close, contentDescription = "Limpar")
                     }
                 },
-                placeholder = { Text("comida", color = chartTextColor().copy(alpha = 0.6f)) }
+                placeholder = { Text("comida, atendimento...", color = chartTextColor().copy(alpha = 0.6f)) }
             )
             Spacer(modifier = Modifier.width(8.dp))
             Button(onClick = { /* filtro já é reativo */ }) {
@@ -223,59 +224,23 @@ fun Charts(
                         .fillMaxWidth()
                         .verticalScroll(rememberScrollState())
                 ) {
-                    val temMediaMensal = mediasMensaisRest1.isNotEmpty() || mediasMensaisRest2.isNotEmpty()
-                    val temComparacoes = dadosFiltrados.isNotEmpty()
+                    val dadosTemporaisRest1 = polaridadesCategoriaTemporalRest1.filter {
+                        it.qt_opinioes > 0 && (aspecto.isBlank() || nomeCategoriaTemporal(it).contains(aspecto, ignoreCase = true))
+                    }
+                    val dadosTemporaisRest2 = polaridadesCategoriaTemporalRest2.filter {
+                        it.qt_opinioes > 0 && (aspecto.isBlank() || nomeCategoriaTemporal(it).contains(aspecto, ignoreCase = true))
+                    }
+                    val temDadosTemporais = dadosTemporaisRest1.isNotEmpty() || dadosTemporaisRest2.isNotEmpty()
 
-                    if (!temMediaMensal && !temComparacoes) {
-                        Text("Nenhum dado para exibir com o filtro atual.", color = chartTextColor())
+                    if (!temDadosTemporais) {
+                        Text("Nenhum dado temporal de categorias para exibir com o filtro atual.", color = chartTextColor())
                     } else {
-                        if (temMediaMensal) {
-                            MonthlyMediaSection(
-                                nomeRestaurante1 = nome1Dec,
-                                nomeRestaurante2 = nome2Dec,
-                                dadosRest1 = mediasMensaisRest1,
-                                dadosRest2 = mediasMensaisRest2
-                            )
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Divider()
-                            Spacer(modifier = Modifier.height(16.dp))
-                        }
-
-                        Text(
-                            text = "Comparaçao por aspecto Geral",
-                            fontSize = 18.sp,
-                            color = chartTextColor().copy(alpha = 0.85f),
-                            lineHeight = 20.sp,
-                            fontWeight = FontWeight.Medium,
-                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)
+                        CategoryTemporalComparisonSection(
+                            nomeRestaurante1 = nome1Dec,
+                            nomeRestaurante2 = nome2Dec,
+                            dadosRest1 = dadosTemporaisRest1,
+                            dadosRest2 = dadosTemporaisRest2
                         )
-
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        if (temComparacoes) {
-                            dadosFiltrados.forEach { dado ->
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = 12.dp)
-                                ) {
-                                    Text(
-                                        "Aspecto: ${dado.aspecto}",
-                                        fontWeight = FontWeight.Bold,
-                                        color = chartTextColor()
-                                    )
-                                    Spacer(modifier = Modifier.height(8.dp))
-
-                                    BarChartComparativo(
-                                        original1 = dado.notaPredita1,
-                                        original2 = dado.notaPredita2,
-                                        nome1 = nome1Dec, nome2 = nome2Dec
-                                    )
-                                    Spacer(modifier = Modifier.height(12.dp))
-                                    Divider()
-                                }
-                            }
-                        }
                     }
                 }
             }
@@ -515,6 +480,289 @@ private fun MonthlyBarChart(
 }
 
 
+/* =================== Polaridade por categoria no tempo =================== */
+
+private data class CategoriaTemporalComparada(
+    val categoriaId: Int,
+    val categoriaNome: String,
+    val dadosRest1: List<ChartPolaridadeCategoriaTemporalDto>,
+    val dadosRest2: List<ChartPolaridadeCategoriaTemporalDto>
+)
+
+private fun nomeCategoriaTemporal(item: ChartPolaridadeCategoriaTemporalDto): String =
+    item.categoria_nome?.takeIf { it.isNotBlank() } ?: "Categoria ${item.categoria_id}"
+
+@Composable
+private fun CategoryTemporalComparisonSection(
+    nomeRestaurante1: String,
+    nomeRestaurante2: String,
+    dadosRest1: List<ChartPolaridadeCategoriaTemporalDto>,
+    dadosRest2: List<ChartPolaridadeCategoriaTemporalDto>
+) {
+    val categorias = remember(dadosRest1, dadosRest2) {
+        val agrupadoRest1 = dadosRest1.groupBy { it.categoria_id }
+        val agrupadoRest2 = dadosRest2.groupBy { it.categoria_id }
+
+        (agrupadoRest1.keys + agrupadoRest2.keys)
+            .distinct()
+            .map { categoriaId ->
+                val grupoRest1 = agrupadoRest1[categoriaId].orEmpty().sortedBy { it.periodo }
+                val grupoRest2 = agrupadoRest2[categoriaId].orEmpty().sortedBy { it.periodo }
+                val nome = (grupoRest1.firstOrNull()?.let(::nomeCategoriaTemporal)
+                    ?: grupoRest2.firstOrNull()?.let(::nomeCategoriaTemporal)
+                    ?: "Categoria $categoriaId")
+
+                CategoriaTemporalComparada(
+                    categoriaId = categoriaId,
+                    categoriaNome = nome,
+                    dadosRest1 = grupoRest1,
+                    dadosRest2 = grupoRest2
+                )
+            }
+            .sortedBy { it.categoriaNome.lowercase() }
+    }
+
+    Text(
+        text = "Comparação temporal por categoria",
+        fontSize = 18.sp,
+        color = chartTextColor().copy(alpha = 0.85f),
+        lineHeight = 20.sp,
+        fontWeight = FontWeight.Medium,
+        modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)
+    )
+    Spacer(modifier = Modifier.height(8.dp))
+    Text(
+        text = "Agora o histograma usa a polaridade média por período, evitando comparar apenas a média geral da categoria.",
+        fontSize = 13.sp,
+        color = chartTextColor().copy(alpha = 0.75f),
+        modifier = Modifier.padding(horizontal = 4.dp)
+    )
+    Spacer(modifier = Modifier.height(12.dp))
+
+    categorias.forEach { categoria ->
+        CategoryTemporalCard(
+            categoria = categoria,
+            nomeRestaurante1 = nomeRestaurante1,
+            nomeRestaurante2 = nomeRestaurante2
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+    }
+}
+
+@Composable
+private fun CategoryTemporalCard(
+    categoria: CategoriaTemporalComparada,
+    nomeRestaurante1: String,
+    nomeRestaurante2: String
+) {
+    val periodosOrdenados = remember(categoria) {
+        (categoria.dadosRest1.map { it.periodo } + categoria.dadosRest2.map { it.periodo })
+            .distinct()
+            .sorted()
+    }
+    var periodoSelecionado by remember(categoria.categoriaId) { mutableStateOf(MonthRange.LAST_6) }
+    var mesesPersonalizados by remember(categoria.categoriaId) { mutableStateOf(6) }
+
+    val valoresRest1 = remember(categoria.dadosRest1) {
+        categoria.dadosRest1.associate { it.periodo to polaridadeEscalonada(it.avg_polaridade.toFloat()) }
+    }
+    val valoresRest2 = remember(categoria.dadosRest2) {
+        categoria.dadosRest2.associate { it.periodo to polaridadeEscalonada(it.avg_polaridade.toFloat()) }
+    }
+    val opinioesRest1 = remember(categoria.dadosRest1) {
+        categoria.dadosRest1.associate { it.periodo to it.qt_opinioes }
+    }
+    val opinioesRest2 = remember(categoria.dadosRest2) {
+        categoria.dadosRest2.associate { it.periodo to it.qt_opinioes }
+    }
+
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        color = Color(0xFFF8F2FF),
+        border = BorderStroke(1.dp, Color(0xFFB39DDB).copy(alpha = 0.4f))
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = categoria.categoriaNome,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 18.sp,
+                color = chartTextColor()
+            )
+            Spacer(Modifier.height(12.dp))
+
+            LegendComparacao(
+                itens = listOf(
+                    LegendItemData(label = nomeRestaurante1, color = Serie1Color),
+                    LegendItemData(label = nomeRestaurante2, color = Serie2Color)
+                )
+            )
+
+            Spacer(Modifier.height(12.dp))
+
+            MonthRangeSelector(
+                periodoSelecionado = periodoSelecionado,
+                mesesPersonalizados = mesesPersonalizados,
+                onPeriodoSelecionado = { periodoSelecionado = it },
+                onMesesPersonalizadosChange = { mesesPersonalizados = it }
+            )
+
+            TemporalCategoryBarChart(
+                periodosOrdenados = filtrarMesesPorPeriodo(
+                    mesesOrdenados = periodosOrdenados,
+                    periodoSelecionado = periodoSelecionado,
+                    mesesPersonalizados = mesesPersonalizados
+                ),
+                valoresRest1 = valoresRest1,
+                valoresRest2 = valoresRest2,
+                opinioesRest1 = opinioesRest1,
+                opinioesRest2 = opinioesRest2
+            )
+        }
+    }
+}
+
+@Composable
+private fun TemporalCategoryBarChart(
+    periodosOrdenados: List<String>,
+    valoresRest1: Map<String, Float>,
+    valoresRest2: Map<String, Float>,
+    opinioesRest1: Map<String, Int>,
+    opinioesRest2: Map<String, Int>,
+    chartHeight: Dp = 240.dp
+) {
+    if (periodosOrdenados.isEmpty()) return
+
+    val scrollState = rememberScrollState()
+    val density = LocalDensity.current
+
+    val leftPadding = 48.dp
+    val rightPadding = 24.dp
+    val topPadding = 24.dp
+    val bottomPadding = 64.dp
+    val groupWidth = 60.dp
+    val groupSpacing = 18.dp
+    val barSpacing = 8.dp
+
+    val totalGroupsWidth = groupWidth * periodosOrdenados.size
+    val totalSpacing = groupSpacing * (periodosOrdenados.size - 1).coerceAtLeast(0)
+    val chartWidth = (leftPadding + rightPadding + totalGroupsWidth + totalSpacing)
+        .coerceAtLeast(360.dp)
+
+    val tickValues = listOf(-100f, -50f, 0f, 50f, 100f)
+    val axisColor = Color(0xFFC8A8F0)
+    val gridColor = Color(0xFFEADCF8)
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(scrollState)
+    ) {
+        Canvas(
+            modifier = Modifier
+                .height(chartHeight + topPadding + bottomPadding)
+                .width(chartWidth)
+        ) {
+            val leftPx = leftPadding.toPx()
+            val rightPx = size.width - rightPadding.toPx()
+            val topPx = topPadding.toPx()
+            val bottomPx = size.height - bottomPadding.toPx()
+            val fullHeight = bottomPx - topPx
+            val zeroY = topPx + (fullHeight / 2f)
+
+            val groupWidthPx = groupWidth.toPx()
+            val groupSpacingPx = groupSpacing.toPx()
+            val barSpacingPx = barSpacing.toPx()
+            val barWidthPx = (groupWidthPx - barSpacingPx) / 2f
+
+            val labelPaint = android.graphics.Paint().apply {
+                color = android.graphics.Color.parseColor("#5A4B81")
+                textSize = with(density) { 12.sp.toPx() }
+                textAlign = android.graphics.Paint.Align.CENTER
+                isAntiAlias = true
+            }
+            val axisLabelPaint = android.graphics.Paint().apply {
+                color = android.graphics.Color.parseColor("#7A6AA6")
+                textSize = with(density) { 12.sp.toPx() }
+                isAntiAlias = true
+            }
+            val countPaint = android.graphics.Paint().apply {
+                color = android.graphics.Color.parseColor("#7A6AA6")
+                textSize = with(density) { 10.sp.toPx() }
+                textAlign = android.graphics.Paint.Align.CENTER
+                isAntiAlias = true
+            }
+
+            tickValues.forEach { tick ->
+                val y = zeroY - (tick / 100f) * (fullHeight / 2f)
+                drawLine(
+                    color = if (tick == 0f) Color.Gray else gridColor,
+                    start = Offset(leftPx, y),
+                    end = Offset(rightPx, y),
+                    strokeWidth = 1f
+                )
+                drawContext.canvas.nativeCanvas.drawText(
+                    tick.toInt().toString(),
+                    leftPx - 20.dp.toPx(),
+                    y + 4.dp.toPx(),
+                    axisLabelPaint
+                )
+            }
+
+            drawLine(
+                color = axisColor,
+                start = Offset(leftPx, topPx),
+                end = Offset(leftPx, bottomPx),
+                strokeWidth = 2f
+            )
+            drawLine(
+                color = axisColor,
+                start = Offset(leftPx, zeroY),
+                end = Offset(rightPx, zeroY),
+                strokeWidth = 2f
+            )
+
+            fun barEndY(valor: Float): Float = zeroY - (valor / 100f) * (fullHeight / 2f)
+
+            fun DrawScope.drawBar(valor: Float, centerX: Float, color: Color) {
+                drawLine(
+                    color = color,
+                    start = Offset(centerX, zeroY),
+                    end = Offset(centerX, barEndY(valor)),
+                    strokeWidth = barWidthPx
+                )
+            }
+
+            periodosOrdenados.forEachIndexed { index, periodo ->
+                val v1 = valoresRest1[periodo] ?: 0f
+                val v2 = valoresRest2[periodo] ?: 0f
+                val groupStart = leftPx + index * (groupWidthPx + groupSpacingPx)
+                val bar1X = groupStart + barSpacingPx / 2f
+                val bar2X = bar1X + barWidthPx + barSpacingPx / 2f
+                val bar1Center = bar1X + barWidthPx / 2f
+                val bar2Center = bar2X + barWidthPx / 2f
+
+                drawBar(v1, bar1Center, Serie1Color)
+                drawBar(v2, bar2Center, Serie2Color)
+
+                drawContext.canvas.nativeCanvas.drawText(
+                    formatarPeriodoLabel(periodo),
+                    groupStart + groupWidthPx / 2f,
+                    bottomPx + 20.dp.toPx(),
+                    labelPaint
+                )
+                drawContext.canvas.nativeCanvas.drawText(
+                    "${opinioesRest1[periodo] ?: 0}/${opinioesRest2[periodo] ?: 0} op.",
+                    groupStart + groupWidthPx / 2f,
+                    bottomPx + 38.dp.toPx(),
+                    countPaint
+                )
+            }
+        }
+    }
+}
+
+
 private fun polaridadePositiva(valor: Float): Float = (valor.coerceAtLeast(0f) * 100f).coerceAtMost(100f)
 
 private fun formatarMesLabel(anoMes: String): String {
@@ -522,6 +770,18 @@ private fun formatarMesLabel(anoMes: String): String {
     val nomes = listOf("jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez")
     val mes = partes.getOrNull(1)?.toIntOrNull()
     return if (mes != null && mes in 1..12) nomes[mes - 1] else anoMes
+}
+
+private fun formatarPeriodoLabel(periodo: String): String {
+    val partes = periodo.split("-")
+    val nomes = listOf("jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez")
+    val mes = partes.getOrNull(1)?.toIntOrNull()
+    val ano = partes.getOrNull(0)?.takeLast(2)
+    return if (mes != null && mes in 1..12 && ano != null) {
+        "${nomes[mes - 1]}/$ano"
+    } else {
+        periodo
+    }
 }
 
 @Composable
