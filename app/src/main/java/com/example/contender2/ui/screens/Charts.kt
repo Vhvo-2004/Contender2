@@ -22,6 +22,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
@@ -71,7 +72,7 @@ fun Charts(
 ) {
     var aspecto by remember { mutableStateOf("") }
     var graficoSelecionado by remember { mutableStateOf("Histograma") }
-    val opcoesDeGrafico = listOf("Histograma", "Pizza", "Radar")
+    val opcoesDeGrafico = listOf("Histograma", "Rosca", "Radar")
 
     var comparacoes by remember { mutableStateOf<List<AspectoComparadoDto>>(emptyList()) }
     var erro by remember { mutableStateOf<String?>(null) }
@@ -80,7 +81,7 @@ fun Charts(
     var polaridadesCategoriaRest2 by remember { mutableStateOf<List<ChartPolaridadeCategoriaDto>>(emptyList()) }
     var mediasMensaisRest1 by remember { mutableStateOf<List<MediaMensalDto>>(emptyList()) }
     var mediasMensaisRest2 by remember { mutableStateOf<List<MediaMensalDto>>(emptyList()) }
-    // Decodifica os nomes
+
     val nome1Dec = remember(nome1) { URLDecoder.decode(nome1, "UTF-8") }
     val nome2Dec = remember(nome2) { URLDecoder.decode(nome2, "UTF-8") }
 
@@ -168,10 +169,10 @@ fun Charts(
         if (erro != null) {
             Text("Erro: $erro", color = Color.Red)
         } else when (graficoSelecionado) {
-            "Pizza" -> {
+            "Rosca" -> {
                 Spacer(Modifier.height(12.dp))
                 Text(
-                    text = "Aspectos mais comentados dos restaurantes.",
+                    text = "Distribuição das categorias mais comentadas dos restaurantes.",
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 16.sp,
                     color = chartTextColor(),
@@ -208,6 +209,7 @@ fun Charts(
                     }
                 }
             }
+
             "Radar" -> {
                 Spacer(Modifier.height(12.dp))
                 if (dadosFiltrados.isEmpty()) {
@@ -216,6 +218,7 @@ fun Charts(
                     RadarChartTodosAspectos(dadosFiltrados, nome1Dec, nome2Dec)
                 }
             }
+
             else -> {
                 Spacer(Modifier.height(12.dp))
                 Column(
@@ -269,7 +272,8 @@ fun Charts(
                                     BarChartComparativo(
                                         original1 = dado.notaPredita1,
                                         original2 = dado.notaPredita2,
-                                        nome1 = nome1Dec, nome2 = nome2Dec
+                                        nome1 = nome1Dec,
+                                        nome2 = nome2Dec
                                     )
                                     Spacer(modifier = Modifier.height(12.dp))
                                     Divider()
@@ -285,7 +289,6 @@ fun Charts(
 
 /* =================== Util =================== */
 
-/** Normaliza valor de [-1, 1] para [0, 1] só para desenho. */
 private fun normalize01(v: Float): Float = ((v + 1f) / 2f).coerceIn(0f, 1f)
 private fun polaridadeEscalonada(valor: Float): Float =
     (valor * 100f).coerceIn(-100f, 100f)
@@ -342,12 +345,10 @@ private fun MonthlyMediaSection(
 
             Spacer(Modifier.height(16.dp))
 
-            //Indicador de escala (Ruim → Bom)
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-
             }
 
             Spacer(Modifier.height(12.dp))
@@ -371,7 +372,6 @@ private fun MonthlyMediaSection(
         }
     }
 }
-
 
 @Composable
 private fun MonthlyBarChart(
@@ -398,7 +398,6 @@ private fun MonthlyBarChart(
     val chartWidth = (leftPadding + rightPadding + totalGroupsWidth + totalSpacing)
         .coerceAtLeast(360.dp)
 
-    // NOVO: eixo de -100 até +100
     val tickValues = listOf(-100f, -50f, 0f, 50f, 100f)
     val axisColor = Color(0xFFC8A8F0)
     val gridColor = Color(0xFFEADCF8)
@@ -420,7 +419,7 @@ private fun MonthlyBarChart(
             val bottomPx = size.height - bottomPadding.toPx()
             val fullHeight = bottomPx - topPx
 
-            val zeroY = topPx + (fullHeight / 2) // centro
+            val zeroY = topPx + (fullHeight / 2)
 
             val groupWidthPx = groupWidth.toPx()
             val groupSpacingPx = groupSpacing.toPx()
@@ -439,7 +438,6 @@ private fun MonthlyBarChart(
                 isAntiAlias = true
             }
 
-            // GRID horizontal
             tickValues.forEach { tick ->
                 val y = zeroY - (tick / 100f) * (fullHeight / 2f)
                 drawLine(
@@ -456,7 +454,6 @@ private fun MonthlyBarChart(
                 )
             }
 
-            // EIXOS
             drawLine(
                 color = axisColor,
                 start = Offset(leftPx, topPx),
@@ -470,7 +467,6 @@ private fun MonthlyBarChart(
                 strokeWidth = 2f
             )
 
-            // DESENHO DAS BARRAS
             mesesOrdenados.forEachIndexed { index, mes ->
 
                 val v1 = valoresRest1[mes] ?: 0f
@@ -486,7 +482,6 @@ private fun MonthlyBarChart(
                     return zeroY - (valor / 100f) * (fullHeight / 2f)
                 }
 
-                // barra 1
                 drawLine(
                     color = Serie1Color,
                     start = Offset(bar1X + barWidthPx / 2, zeroY),
@@ -494,7 +489,6 @@ private fun MonthlyBarChart(
                     strokeWidth = barWidthPx
                 )
 
-                // barra 2
                 drawLine(
                     color = Serie2Color,
                     start = Offset(bar2X + barWidthPx / 2, zeroY),
@@ -502,7 +496,6 @@ private fun MonthlyBarChart(
                     strokeWidth = barWidthPx
                 )
 
-                // label mês
                 drawContext.canvas.nativeCanvas.drawText(
                     label,
                     groupStart + groupWidthPx / 2,
@@ -513,7 +506,6 @@ private fun MonthlyBarChart(
         }
     }
 }
-
 
 private fun polaridadePositiva(valor: Float): Float = (valor.coerceAtLeast(0f) * 100f).coerceAtMost(100f)
 
@@ -644,7 +636,7 @@ fun BarChartComparativo(original1: Float, original2: Float, nome1: String, nome2
     }
 }
 
-/* =================== Pizza por categoria =================== */
+/* =================== Rosca por categoria =================== */
 
 @Composable
 private fun rememberCategoryColorProvider(): (String) -> Color {
@@ -708,11 +700,11 @@ private fun CategoriaPizzaSection(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
-                            CategoriaPieChart(
+                            CategoriaDonutChart(
                                 dados = ordenado,
                                 total = total,
                                 colorForCategory = colorForCategory,
-                                modifier = Modifier.size(160.dp)
+                                modifier = Modifier.size(180.dp)
                             )
                             CategoriaLegend(
                                 dados = ordenado,
@@ -727,11 +719,11 @@ private fun CategoriaPizzaSection(
                             horizontalArrangement = Arrangement.spacedBy(24.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            CategoriaPieChart(
+                            CategoriaDonutChart(
                                 dados = ordenado,
                                 total = total,
                                 colorForCategory = colorForCategory,
-                                modifier = Modifier.size(160.dp)
+                                modifier = Modifier.size(180.dp)
                             )
                             CategoriaLegend(
                                 dados = ordenado,
@@ -748,7 +740,7 @@ private fun CategoriaPizzaSection(
 }
 
 @Composable
-private fun CategoriaPieChart(
+private fun CategoriaDonutChart(
     dados: List<ChartPolaridadeCategoriaDto>,
     total: Int,
     colorForCategory: (String) -> Color,
@@ -764,27 +756,56 @@ private fun CategoriaPieChart(
         return
     }
 
-    Canvas(modifier = modifier) {
-        var startAngle = -90f
-        dados.forEach { item ->
-            val valor = item.qt_opinioes
-            if (valor <= 0) return@forEach
-
-            val sweep = 360f * (valor.toFloat() / total.toFloat())
-            drawArc(
-                color = colorForCategory(item.categoria_nome),
-                startAngle = startAngle,
-                sweepAngle = sweep,
-                useCenter = true
+    Box(
+        modifier = modifier,
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            var startAngle = -90f
+            val strokeWidth = size.minDimension * 0.22f
+            val inset = strokeWidth / 2f
+            val arcSize = Size(
+                width = size.width - strokeWidth,
+                height = size.height - strokeWidth
             )
-            startAngle += sweep
+            val topLeft = Offset(inset, inset)
+
+            dados.forEach { item ->
+                val valor = item.qt_opinioes
+                if (valor <= 0) return@forEach
+
+                val sweep = 360f * (valor.toFloat() / total.toFloat())
+
+                drawArc(
+                    color = colorForCategory(item.categoria_nome),
+                    startAngle = startAngle,
+                    sweepAngle = sweep,
+                    useCenter = false,
+                    topLeft = topLeft,
+                    size = arcSize,
+                    style = Stroke(
+                        width = strokeWidth,
+                        cap = StrokeCap.Butt
+                    )
+                )
+
+                startAngle += sweep
+            }
         }
 
-        drawCircle(
-            color = Color.White.copy(alpha = 0.08f),
-            radius = size.minDimension * 0.5f,
-            style = Stroke(width = size.minDimension * 0.02f)
-        )
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                text = total.toString(),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = chartTextColor()
+            )
+            Text(
+                text = "opiniões",
+                style = MaterialTheme.typography.bodySmall,
+                color = chartTextColor().copy(alpha = 0.75f)
+            )
+        }
     }
 }
 
@@ -836,16 +857,14 @@ private fun CategoriaLegendItem(
                 style = MaterialTheme.typography.bodyMedium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                color = Color(0xFF2B2B2B) // forçar texto escuro na legenda
+                color = Color(0xFF2B2B2B)
             )
-
         }
         Text(
             text = "$quantidade (${"%.2f".format(percentual * 100f)}%)",
             style = MaterialTheme.typography.bodySmall,
-            color = Color(0xFF2B2B2B) // texto mais escuro para contraste
+            color = Color(0xFF2B2B2B)
         )
-
     }
 }
 
@@ -889,7 +908,6 @@ fun RadarChartTodosAspectos(
         val count = labels.size
         val angleStep = (2.0 * Math.PI / count).toFloat()
 
-        // grade
         val rings = 4
         repeat(rings) { i ->
             val r = radius * (i + 1) / rings
@@ -901,7 +919,6 @@ fun RadarChartTodosAspectos(
             )
         }
 
-        // eixos + labels
         val labelPaint = android.graphics.Paint().apply {
             color = android.graphics.Color.DKGRAY
             textSize = 22f
@@ -935,7 +952,6 @@ fun RadarChartTodosAspectos(
         drawCircle(color = Color.Gray, radius = radius, center = Offset(cx, cy), style = Stroke(width = 2f))
     }
 
-    // Estes componentes (LegendComparacao/LegendItemData) ficam no seu arquivo Legend.kt
     LegendComparacao(
         itens = listOf(
             LegendItemData(label = nomeRestaurante1, color = Serie1Color),
