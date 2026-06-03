@@ -79,6 +79,8 @@ fun Charts(
 
     var polaridadesCategoriaRest1 by remember { mutableStateOf<List<ChartPolaridadeCategoriaDto>>(emptyList()) }
     var polaridadesCategoriaRest2 by remember { mutableStateOf<List<ChartPolaridadeCategoriaDto>>(emptyList()) }
+    var mediasMensaisRest1 by remember { mutableStateOf<List<MediaMensalDto>>(emptyList()) }
+    var mediasMensaisRest2 by remember { mutableStateOf<List<MediaMensalDto>>(emptyList()) }
     var polaridadesCategoriaTemporalRest1 by remember { mutableStateOf<List<ChartPolaridadeCategoriaTemporalDto>>(emptyList()) }
     var polaridadesCategoriaTemporalRest2 by remember { mutableStateOf<List<ChartPolaridadeCategoriaTemporalDto>>(emptyList()) }
     // Decodifica os nomes
@@ -91,6 +93,8 @@ fun Charts(
             comparacoes = RetrofitInstance.api.compararAspectos(id1, id2)
             polaridadesCategoriaRest1 = RetrofitInstance.api.chartPolaridadeCategoria(id1)
             polaridadesCategoriaRest2 = RetrofitInstance.api.chartPolaridadeCategoria(id2)
+            mediasMensaisRest1 = RetrofitInstance.api.getMediaMensal(id1)
+            mediasMensaisRest2 = RetrofitInstance.api.getMediaMensal(id2)
             polaridadesCategoriaTemporalRest1 = RetrofitInstance.api.chartPolaridadeCategoriaTemporal(id1)
             polaridadesCategoriaTemporalRest2 = RetrofitInstance.api.chartPolaridadeCategoriaTemporal(id2)
         } catch (e: Exception) {
@@ -230,17 +234,37 @@ fun Charts(
                     val dadosTemporaisRest2 = polaridadesCategoriaTemporalRest2.filter {
                         it.qt_opinioes > 0 && (aspecto.isBlank() || nomeCategoriaTemporal(it).contains(aspecto, ignoreCase = true))
                     }
+                    val temMediaMensal = mediasMensaisRest1.isNotEmpty() || mediasMensaisRest2.isNotEmpty()
                     val temDadosTemporais = dadosTemporaisRest1.isNotEmpty() || dadosTemporaisRest2.isNotEmpty()
 
-                    if (!temDadosTemporais) {
-                        Text("Nenhum dado temporal de categorias para exibir com o filtro atual.", color = chartTextColor())
+                    if (!temMediaMensal && !temDadosTemporais) {
+                        Text("Nenhum dado temporal para exibir com o filtro atual.", color = chartTextColor())
                     } else {
-                        CategoryTemporalComparisonSection(
-                            nomeRestaurante1 = nome1Dec,
-                            nomeRestaurante2 = nome2Dec,
-                            dadosRest1 = dadosTemporaisRest1,
-                            dadosRest2 = dadosTemporaisRest2
-                        )
+                        if (temMediaMensal) {
+                            MonthlyMediaSection(
+                                nomeRestaurante1 = nome1Dec,
+                                nomeRestaurante2 = nome2Dec,
+                                dadosRest1 = mediasMensaisRest1,
+                                dadosRest2 = mediasMensaisRest2
+                            )
+                        }
+
+                        if (temMediaMensal && temDadosTemporais) {
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Divider()
+                            Spacer(modifier = Modifier.height(16.dp))
+                        }
+
+                        if (temDadosTemporais) {
+                            CategoryTemporalComparisonSection(
+                                nomeRestaurante1 = nome1Dec,
+                                nomeRestaurante2 = nome2Dec,
+                                dadosRest1 = dadosTemporaisRest1,
+                                dadosRest2 = dadosTemporaisRest2
+                            )
+                        } else if (aspecto.isNotBlank()) {
+                            Text("Nenhum dado temporal de categorias para exibir com o filtro atual.", color = chartTextColor())
+                        }
                     }
                 }
             }
