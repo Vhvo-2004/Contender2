@@ -950,17 +950,26 @@ private fun CategoriaDonutSection(
     colorForCategory: (String) -> Color
 ) {
     Column(Modifier.fillMaxWidth()) {
+        val ordenado = dados
+            .filter { it.qt_opinioes > 0 }
+            .sortedByDescending { it.qt_opinioes }
+        val total = ordenado.sumOf { it.qt_opinioes }
+
         Text(
             text = titulo,
             fontWeight = FontWeight.SemiBold,
             fontSize = 18.sp,
             color = chartTextColor()
         )
+        if (total > 0) {
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = "Total: $total ${if (total == 1) "aspecto comentado" else "aspectos comentados"}",
+                style = MaterialTheme.typography.bodyMedium,
+                color = chartTextColor().copy(alpha = 0.75f)
+            )
+        }
         Spacer(Modifier.height(12.dp))
-
-        val ordenado = dados
-            .filter { it.qt_opinioes > 0 }
-            .sortedByDescending { it.qt_opinioes }
 
         Surface(
             modifier = Modifier.fillMaxWidth(),
@@ -978,7 +987,6 @@ private fun CategoriaDonutSection(
                     Text("Sem dados suficientes", color = chartTextColor())
                 }
             } else {
-                val total = ordenado.sumOf { it.qt_opinioes }
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1048,33 +1056,54 @@ private fun CategoriaDonutChart(
         return
     }
 
-    Canvas(modifier = modifier) {
-        val strokeWidth = size.minDimension * 0.22f
-        val arcSize = Size(size.width - strokeWidth, size.height - strokeWidth)
-        val arcTopLeft = Offset(strokeWidth / 2f, strokeWidth / 2f)
-        var startAngle = -90f
+    Box(
+        modifier = modifier,
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val strokeWidth = size.minDimension * 0.22f
+            val arcSize = Size(size.width - strokeWidth, size.height - strokeWidth)
+            val arcTopLeft = Offset(strokeWidth / 2f, strokeWidth / 2f)
+            var startAngle = -90f
 
-        dados.forEach { item ->
-            val valor = item.qt_opinioes
-            if (valor <= 0) return@forEach
+            dados.forEach { item ->
+                val valor = item.qt_opinioes
+                if (valor <= 0) return@forEach
 
-            val sweep = 360f * (valor.toFloat() / total.toFloat())
-            drawArc(
-                color = colorForCategory(item.categoria_nome),
-                startAngle = startAngle,
-                sweepAngle = sweep,
-                useCenter = false,
-                topLeft = arcTopLeft,
-                size = arcSize,
-                style = Stroke(width = strokeWidth)
+                val sweep = 360f * (valor.toFloat() / total.toFloat())
+                drawArc(
+                    color = colorForCategory(item.categoria_nome),
+                    startAngle = startAngle,
+                    sweepAngle = sweep,
+                    useCenter = false,
+                    topLeft = arcTopLeft,
+                    size = arcSize,
+                    style = Stroke(width = strokeWidth)
+                )
+                startAngle += sweep
+            }
+
+            drawCircle(
+                color = Color(0xFFF8F2FF),
+                radius = size.minDimension * 0.26f
             )
-            startAngle += sweep
         }
 
-        drawCircle(
-            color = Color(0xFFF8F2FF),
-            radius = size.minDimension * 0.26f
-        )
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = total.toString(),
+                fontWeight = FontWeight.Bold,
+                fontSize = 18.sp,
+                color = Color(0xFF2B2B2B)
+            )
+            Text(
+                text = if (total == 1) "aspecto" else "aspectos",
+                style = MaterialTheme.typography.labelSmall,
+                color = Color(0xFF2B2B2B).copy(alpha = 0.75f)
+            )
+        }
     }
 }
 
