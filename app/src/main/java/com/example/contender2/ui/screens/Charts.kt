@@ -72,7 +72,7 @@ fun Charts(
 ) {
     var aspecto by remember { mutableStateOf("") }
     var graficoSelecionado by remember { mutableStateOf("Histograma") }
-    val opcoesDeGrafico = listOf("Histograma", "Pizza", "Radar")
+    val opcoesDeGrafico = listOf("Histograma", "Rosca", "Radar")
 
     var comparacoes by remember { mutableStateOf<List<AspectoComparadoDto>>(emptyList()) }
     var erro by remember { mutableStateOf<String?>(null) }
@@ -173,7 +173,7 @@ fun Charts(
         if (erro != null) {
             Text("Erro: $erro", color = Color.Red)
         } else when (graficoSelecionado) {
-            "Pizza" -> {
+            "Rosca" -> {
                 Spacer(Modifier.height(12.dp))
                 Text(
                     text = "Aspectos mais comentados dos restaurantes.",
@@ -197,7 +197,7 @@ fun Charts(
                             .verticalScroll(scrollState),
                         verticalArrangement = Arrangement.spacedBy(24.dp)
                     ) {
-                        CategoriaPizzaSection(
+                        CategoriaDonutSection(
                             titulo = nome1Dec,
                             dados = categoriasRest1,
                             colorForCategory = categoriaColorProvider
@@ -205,7 +205,7 @@ fun Charts(
 
                         Divider(color = Color(0xFFE0E0E0))
 
-                        CategoriaPizzaSection(
+                        CategoriaDonutSection(
                             titulo = nome2Dec,
                             dados = categoriasRest2,
                             colorForCategory = categoriaColorProvider
@@ -928,7 +928,7 @@ fun BarChartComparativo(original1: Float, original2: Float, nome1: String, nome2
     }
 }
 
-/* =================== Pizza por categoria =================== */
+/* =================== Rosca por categoria =================== */
 
 @Composable
 private fun rememberCategoryColorProvider(): (String) -> Color {
@@ -944,7 +944,7 @@ private fun rememberCategoryColorProvider(): (String) -> Color {
 }
 
 @Composable
-private fun CategoriaPizzaSection(
+private fun CategoriaDonutSection(
     titulo: String,
     dados: List<ChartPolaridadeCategoriaDto>,
     colorForCategory: (String) -> Color
@@ -992,7 +992,7 @@ private fun CategoriaPizzaSection(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
-                            CategoriaPieChart(
+                            CategoriaDonutChart(
                                 dados = ordenado,
                                 total = total,
                                 colorForCategory = colorForCategory,
@@ -1011,7 +1011,7 @@ private fun CategoriaPizzaSection(
                             horizontalArrangement = Arrangement.spacedBy(24.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            CategoriaPieChart(
+                            CategoriaDonutChart(
                                 dados = ordenado,
                                 total = total,
                                 colorForCategory = colorForCategory,
@@ -1032,7 +1032,7 @@ private fun CategoriaPizzaSection(
 }
 
 @Composable
-private fun CategoriaPieChart(
+private fun CategoriaDonutChart(
     dados: List<ChartPolaridadeCategoriaDto>,
     total: Int,
     colorForCategory: (String) -> Color,
@@ -1049,7 +1049,11 @@ private fun CategoriaPieChart(
     }
 
     Canvas(modifier = modifier) {
+        val strokeWidth = size.minDimension * 0.22f
+        val arcSize = Size(size.width - strokeWidth, size.height - strokeWidth)
+        val arcTopLeft = Offset(strokeWidth / 2f, strokeWidth / 2f)
         var startAngle = -90f
+
         dados.forEach { item ->
             val valor = item.qt_opinioes
             if (valor <= 0) return@forEach
@@ -1059,15 +1063,17 @@ private fun CategoriaPieChart(
                 color = colorForCategory(item.categoria_nome),
                 startAngle = startAngle,
                 sweepAngle = sweep,
-                useCenter = true
+                useCenter = false,
+                topLeft = arcTopLeft,
+                size = arcSize,
+                style = Stroke(width = strokeWidth)
             )
             startAngle += sweep
         }
 
         drawCircle(
-            color = Color.White.copy(alpha = 0.08f),
-            radius = size.minDimension * 0.5f,
-            style = Stroke(width = size.minDimension * 0.02f)
+            color = Color(0xFFF8F2FF),
+            radius = size.minDimension * 0.26f
         )
     }
 }
